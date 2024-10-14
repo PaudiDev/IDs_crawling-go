@@ -1,0 +1,15 @@
+core:
+  max_concurrency: 35
+  initial_concurrency: 3
+  initial_step: 5
+
+http:
+  requests_timeout_seconds: 5
+  cookies_refresh_delay: 600    # 10 minutes
+  max_rate_limits_per_second: 3
+  rate_limit_wait_seconds: 3
+
+standard:
+  base_url: "https://url"
+  session_cookie_name: "cookie_name"
+  timestamp_format: "item_timestamp_format"
