@@ -30,9 +30,9 @@ type http struct {
 }
 
 type standard struct {
-	Urls              urls   `yaml:"urls"`
 	SessionCookieName string `yaml:"session_cookie_name"`
 	TimestampFormat   string `yaml:"timestamp_format"`
+	Urls              urls   `yaml:"urls"`
 }
 
 type stepData struct {
@@ -61,6 +61,8 @@ type urls struct {
 	BaseUrl                string `yaml:"base_url"`
 	ItemsUrl               string `yaml:"items_url"`
 	ItemUrl                string `yaml:"item_url"`
+	ItemUrlAfterID         string `yaml:"item_url_after_id"`
+	RandomizeItemUrlSuffix bool   `yaml:"randomize_item_url_addition"`
 }
 
 func GetConfigFromFile(path string) Config {

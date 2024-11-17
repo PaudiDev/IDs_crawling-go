@@ -135,6 +135,14 @@ func fetchItem(
 ) (crawltypes.Item, error) {
 	url := cfg.Standard.Urls.ItemUrl + strconv.Itoa(itemID)
 
+	// This randomization is not the fastest but it is the simplest
+	// Caching a rand.Source.Int63n value and shifting it by 1 until it is 0 would be faster
+	// If each url has different rate limits, the best would be to switch
+	// on each request based on the proxy, but this would increase the coupling
+	if !cfg.Standard.Urls.RandomizeItemUrlSuffix || randGen.Intn(2) == 1 {
+		url += cfg.Standard.Urls.ItemUrlAfterID
+	}
+
 	req, err := httpx.BuildRequest(ctx, "GET", url, nil, headers)
 	if err != nil {
 		return crawltypes.Item{}, err
