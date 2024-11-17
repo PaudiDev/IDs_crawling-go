@@ -1,4 +1,4 @@
-package crawler
+package httpx
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"crawler/app/pkg/assert"
 )
 
 var (
@@ -39,11 +41,20 @@ func pickRandomProxy(randGen *rand.Rand) *url.URL {
 	return proxiesPool[randGen.Intn(len(proxiesPool))]
 }
 
-func pickRandomUserAgent(randGen *rand.Rand) string {
+func PickRandomUserAgent(randGen *rand.Rand) string {
 	return userAgentsPool[randGen.Intn(len(userAgentsPool))]
 }
 
-func buildRequest(
+func setHeaders(req *http.Request, headers map[string]string) {
+	assert.NotNil(req, "nil pointer to request must never happen")
+	assert.Assert(len(headers) > 0, "empty headers map")
+
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+}
+
+func BuildRequest(
 	ctx context.Context,
 	method string,
 	url string,
@@ -60,7 +71,7 @@ func buildRequest(
 	return req, nil
 }
 
-func makeRequestWithProxy(
+func MakeRequestWithProxy(
 	req *http.Request,
 	cookieJar http.CookieJar,
 	timeout int,

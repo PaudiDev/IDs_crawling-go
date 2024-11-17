@@ -15,6 +15,7 @@ import (
 	crawltypes "crawler/app/pkg/crawler/crawl-types"
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
+	"crawler/app/pkg/utils/httpx"
 )
 
 func fetchCookie(
@@ -25,12 +26,12 @@ func fetchCookie(
 	headers map[string]string,
 	randGen *rand.Rand,
 ) error {
-	req, err := buildRequest(ctx, "GET", cfg.Standard.BaseUrl, nil, headers)
+	req, err := httpx.BuildRequest(ctx, "GET", cfg.Standard.Urls.BaseUrl, nil, headers)
 	if err != nil {
 		return err
 	}
 
-	response, err := makeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
+	response, err := httpx.MakeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
 	if err != nil {
 		return err
 	}
@@ -41,7 +42,7 @@ func fetchCookie(
 	}
 
 	// if this returns an error it is already handled by buildRequest
-	parsedUrl, _ := url.Parse(cfg.Standard.BaseUrl)
+	parsedUrl, _ := url.Parse(cfg.Standard.Urls.BaseUrl)
 	var cookies []*http.Cookie = jar.Cookies(parsedUrl)
 	if cookies == nil {
 		return fmt.Errorf("no cookies found in response")
@@ -90,12 +91,12 @@ func fetchHighestID(
 	headers map[string]string,
 	randGen *rand.Rand,
 ) (int, error) {
-	req, err := buildRequest(ctx, "GET", cfg.Standard.ItemsUrl, nil, headers)
+	req, err := httpx.BuildRequest(ctx, "GET", cfg.Standard.Urls.ItemsUrl, nil, headers)
 	if err != nil {
 		return 0, err
 	}
 
-	response, err := makeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
+	response, err := httpx.MakeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
 	if err != nil {
 		return 0, err
 	}
@@ -132,14 +133,14 @@ func fetchItem(
 	headers map[string]string,
 	randGen *rand.Rand,
 ) (crawltypes.Item, error) {
-	url := cfg.Standard.ItemUrl + strconv.Itoa(itemID)
+	url := cfg.Standard.Urls.ItemUrl + strconv.Itoa(itemID)
 
-	req, err := buildRequest(ctx, "GET", url, nil, headers)
+	req, err := httpx.BuildRequest(ctx, "GET", url, nil, headers)
 	if err != nil {
 		return crawltypes.Item{}, err
 	}
 
-	response, err := makeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
+	response, err := httpx.MakeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
 	if err != nil {
 		return crawltypes.Item{}, err
 	}

@@ -30,8 +30,9 @@ http:
     min_time: 300
 
 standard:
-  base_url: "https://url"
-  items_url: "https://url/items"
-  item_url: "https://url/items/item_id"
+  urls:
+    base_url: "https://url"
+    items_url: "https://url/items"
+    item_url: "https://url/items/<item_id>"         # Remove <item_id>, leave "/"
   session_cookie_name: "cookie_name"
   timestamp_format: "item_timestamp_format"

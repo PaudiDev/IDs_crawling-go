@@ -16,6 +16,7 @@ import (
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
 	"crawler/app/pkg/utils/fmtx"
+	"crawler/app/pkg/utils/httpx"
 )
 
 type worker struct {
@@ -60,7 +61,7 @@ func (wk *worker) run(
 	jar, err := cookiejar.New(nil)
 	assert.NoError(err, fmtx.Worker("cookie jar must be created to start the worker", wk.ID))
 
-	headers := createBaseHeaders(pickRandomUserAgent(wk.Rand))
+	headers := createBaseHeaders(httpx.PickRandomUserAgent(wk.Rand))
 
 	fetchCookie(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieName, headers, wk.Rand)
 	go fetchCookieLoop(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieName, headers, wk.Rand, logChan)
@@ -114,7 +115,7 @@ func (wk *worker) run(
 			state.Mu.Unlock()
 			core.Mu.Unlock()
 
-			for k, v := range createBaseHeaders(pickRandomUserAgent(wk.Rand)) {
+			for k, v := range createBaseHeaders(httpx.PickRandomUserAgent(wk.Rand)) {
 				headers[k] = v
 			}
 
@@ -203,7 +204,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, statusLogFile *os.Fil
 
 	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	headers := createScrapingHeaders(pickRandomUserAgent(mainRand))
+	headers := createScrapingHeaders(httpx.PickRandomUserAgent(mainRand))
 	jar, err := cookiejar.New(nil)
 	assert.NoError(err, "cookie jar must be created to start the crawler")
 

@@ -30,9 +30,7 @@ type http struct {
 }
 
 type standard struct {
-	BaseUrl           string `yaml:"base_url"`
-	ItemsUrl          string `yaml:"items_url"`
-	ItemUrl           string `yaml:"item_url"`
+	Urls              urls   `yaml:"urls"`
 	SessionCookieName string `yaml:"session_cookie_name"`
 	TimestampFormat   string `yaml:"timestamp_format"`
 }
@@ -57,6 +55,12 @@ type concurrencyData struct {
 	MaxTime           int `yaml:"max_time"`
 	MediumTime        int `yaml:"medium_time"`
 	MinTime           int `yaml:"min_time"`
+}
+
+type urls struct {
+	BaseUrl                string `yaml:"base_url"`
+	ItemsUrl               string `yaml:"items_url"`
+	ItemUrl                string `yaml:"item_url"`
 }
 
 func GetConfigFromFile(path string) Config {

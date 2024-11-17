@@ -1,11 +1,5 @@
 package crawler
 
-import (
-	"net/http"
-
-	"crawler/app/pkg/assert"
-)
-
 func createBaseHeaders(userAgent string) map[string]string {
 	headers := map[string]string{
 		"User-Agent": userAgent,
@@ -33,13 +27,4 @@ func createScrapingHeaders(userAgent string) map[string]string {
 	}
 
 	return headers
-}
-
-func setHeaders(req *http.Request, headers map[string]string) {
-	assert.NotNil(req, "nil pointer to request must never happen")
-	assert.Assert(len(headers) > 0, "empty headers map")
-
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
 }

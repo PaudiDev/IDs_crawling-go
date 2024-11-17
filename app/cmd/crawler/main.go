@@ -9,6 +9,7 @@ import (
 	assetsHandler "crawler/app/pkg/assets-handler"
 	"crawler/app/pkg/crawler"
 	"crawler/app/pkg/shutdown"
+	"crawler/app/pkg/utils/httpx"
 	"crawler/app/pkg/utils/pathx"
 )
 
@@ -37,11 +38,11 @@ func main() {
 	}
 
 	assert.NoError(
-		crawler.LoadProxies(proxies),
+		httpx.LoadProxies(proxies),
 		"no proxies found in file",
 	)
 	assert.NoError(
-		crawler.LoadUserAgents(httpAssets.UserAgents),
+		httpx.LoadUserAgents(httpAssets.UserAgents),
 		"no user agents found in file",
 	)
 
