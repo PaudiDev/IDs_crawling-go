@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http/cookiejar"
+	"os"
 	"time"
 
 	"crawler/app/pkg/assert"
@@ -197,7 +198,7 @@ func (wk *worker) Log(logChan <-chan ctypes.LogData) {
 	}
 }
 
-func Start(ctx context.Context, cfg *assetshandler.Config) {
+func Start(ctx context.Context, cfg *assetshandler.Config, statusLogFile *os.File) {
 	slog.Info("Crawler Started...")
 
 	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -235,4 +236,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config) {
 	}
 
 	slog.Info(fmt.Sprintf("%v workers Started...", cfg.Core.MaxConcurrency))
+
+	logSeconds := 1
+	logAndResetVarsLoop(core, state, outcome, logSeconds, statusLogFile)
 }

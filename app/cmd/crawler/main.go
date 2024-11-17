@@ -23,6 +23,13 @@ func main() {
 	)
 	slog.SetDefault(slog.New(slogHandler))
 
+	statusLogFile, err := os.OpenFile(
+		pathx.FromCwd(os.Getenv("STATUS_LOG_FILE")),
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND|os.O_TRUNC, 0o666,
+	)
+	assert.NoError(err, "status log file must be created to start the crawler")
+	defer statusLogFile.Close()
+
 	config := assetsHandler.GetConfigFromFile(pathx.FromCwd(os.Getenv("CONFIG_FILE")))
 	proxies := assetsHandler.GetProxiesFromFile(pathx.FromCwd(os.Getenv("PROXIES_FILE")))
 	httpAssets := assetsHandler.HttpAssets{
@@ -38,5 +45,5 @@ func main() {
 		"no user agents found in file",
 	)
 
-	crawler.Start(ctx, &config)
+	crawler.Start(ctx, &config, statusLogFile)
 }
