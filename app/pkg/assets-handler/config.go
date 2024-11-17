@@ -21,16 +21,42 @@ type core struct {
 }
 
 type http struct {
-	Timeout                int `yaml:"requests_timeout_seconds"`
-	CookiesRefreshDelay    int `yaml:"cookies_refresh_delay"`
-	MaxRateLimitsPerSecond int `yaml:"max_rate_limits_per_second"`
-	RateLimitWait          int `yaml:"rate_limit_wait_seconds"`
+	Timeout                int             `yaml:"requests_timeout_seconds"`
+	CookiesRefreshDelay    int             `yaml:"cookies_refresh_delay"`
+	MaxRateLimitsPerSecond int             `yaml:"max_rate_limits_per_second"`
+	RateLimitWait          int             `yaml:"rate_limit_wait_seconds"`
+	StepData               stepData        `yaml:"step_data"`
+	ConcurrencyData        concurrencyData `yaml:"concurrency_data"`
 }
 
 type standard struct {
 	BaseUrl           string `yaml:"base_url"`
+	ItemsUrl          string `yaml:"items_url"`
+	ItemUrl           string `yaml:"item_url"`
 	SessionCookieName string `yaml:"session_cookie_name"`
 	TimestampFormat   string `yaml:"timestamp_format"`
+}
+
+type stepData struct {
+	MinChangeTime        int `yaml:"min_time_since_last_adjustment_milli"`
+	MaxErrorDeviation    int `yaml:"max_error_deviation"`
+	MaxConsecutiveErrors int `yaml:"max_consecutive_errors"`
+	MaxRetries           int `yaml:"max_retries"`
+	MaxTime              int `yaml:"max_time"`
+	AggressiveTime       int `yaml:"aggressive_time"`
+	MediumTime           int `yaml:"medium_time"`
+	MinTime              int `yaml:"min_time"`
+	RetryTime            int `yaml:"retry_time"`
+	LastDelayOffset      int `yaml:"last_delay_offset"`
+}
+
+type concurrencyData struct {
+	MinChangeTime     int `yaml:"min_time_since_last_adjustment_milli"`
+	MaxErrorDeviation int `yaml:"max_error_deviation"`
+	MinConcurrency    int `yaml:"min_concurrency"`
+	MaxTime           int `yaml:"max_time"`
+	MediumTime        int `yaml:"medium_time"`
+	MinTime           int `yaml:"min_time"`
 }
 
 func GetConfigFromFile(path string) Config {

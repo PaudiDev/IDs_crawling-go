@@ -25,6 +25,18 @@ func main() {
 
 	config := assetsHandler.GetConfigFromFile(pathx.FromCwd(os.Getenv("CONFIG_FILE")))
 	proxies := assetsHandler.GetProxiesFromFile(pathx.FromCwd(os.Getenv("PROXIES_FILE")))
+	httpAssets := assetsHandler.HttpAssets{
+		UserAgents: assetsHandler.GetUAsFromFile(pathx.FromCwd(os.Getenv("USER_AGENTS_FILE"))),
+	}
 
-	crawler.Start(ctx, &config, proxies)
+	assert.NoError(
+		crawler.LoadProxies(proxies),
+		"no proxies found in file",
+	)
+	assert.NoError(
+		crawler.LoadUserAgents(httpAssets.UserAgents),
+		"no user agents found in file",
+	)
+
+	crawler.Start(ctx, &config)
 }

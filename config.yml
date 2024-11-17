@@ -9,7 +9,29 @@ http:
   max_rate_limits_per_second: 3
   rate_limit_wait_seconds: 3
 
+  step_data:
+    min_time_since_last_adjustment_milli: 100
+    max_error_deviation: 1
+    max_consecutive_errors: 3
+    max_retries: 5
+    max_time: 1000
+    aggressive_time: 800
+    medium_time: 500
+    min_time: 300
+    retry_time: 300
+    last_delay_offset: 300
+  
+  concurrency_data:
+    min_time_since_last_adjustment_milli: 100
+    max_error_deviation: 1
+    min_concurrency: 3
+    max_time: 500
+    medium_time: 350
+    min_time: 300
+
 standard:
   base_url: "https://url"
+  items_url: "https://url/items"
+  item_url: "https://url/items/item_id"
   session_cookie_name: "cookie_name"
   timestamp_format: "item_timestamp_format"
