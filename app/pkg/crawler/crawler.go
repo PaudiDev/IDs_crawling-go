@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,8 +16,11 @@ import (
 	crawltypes "crawler/app/pkg/crawler/crawl-types"
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
+	safews "crawler/app/pkg/safe-ws"
 	"crawler/app/pkg/utils/fmtx"
 	"crawler/app/pkg/utils/httpx"
+
+	"github.com/gorilla/websocket"
 )
 
 type worker struct {
@@ -32,6 +36,7 @@ func (wk *worker) run(
 	state *State,
 	outcome *Outcome,
 	handlers *crawltypes.Handlers,
+	conn *safews.SafeConn,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -157,6 +162,32 @@ func (wk *worker) run(
 				defer state.Mu.Unlock()
 				return state.MostRecentID
 			}() {
+				go func() {
+					jsonResponse, err := json.Marshal(decodedResp)
+					if err != nil {
+						logChan <- ctypes.LogData{
+							Level: slog.LevelError,
+							Msg: fmt.Sprintf(
+								"error marshalling item response to json, "+
+									"impossible sending to websocket (ID %v): %v",
+								selectedItemID, err,
+							),
+						}
+						return
+					}
+
+					err = conn.WriteMessage(websocket.TextMessage, jsonResponse)
+					if err != nil {
+						logChan <- ctypes.LogData{
+							Level: slog.LevelError,
+							Msg: fmt.Sprintf(
+								"error sending item to websocket (ID %v): %v",
+								selectedItemID, err,
+							),
+						}
+					}
+				}()
+
 				state.Mu.Lock()
 				state.MostRecentID = selectedItemID
 				state.Mu.Unlock()
@@ -180,9 +211,6 @@ func (wk *worker) run(
 				}
 			}
 		}
-
-		// TODO: Here the item data will be sent to the validation function
-		// to ensure it is an interesting product
 	}
 }
 
@@ -200,7 +228,7 @@ func (wk *worker) Log(logChan <-chan ctypes.LogData) {
 	}
 }
 
-func Start(ctx context.Context, cfg *assetshandler.Config, statusLogFile *os.File) {
+func Start(ctx context.Context, cfg *assetshandler.Config, conn *safews.SafeConn, statusLogFile *os.File) {
 	slog.Info("Crawler Started...")
 
 	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -234,7 +262,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, statusLogFile *os.Fil
 			Rand: rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go wk.run(cfg, core, state, outcome, handlers)
+		go wk.run(cfg, core, state, outcome, handlers, conn)
 	}
 
 	slog.Info(fmt.Sprintf("%v workers Started...", cfg.Core.MaxConcurrency))

@@ -46,3 +46,21 @@ func FillStruct(m map[string]interface{}, s interface{}) error {
 
 	return nil
 }
+
+func StringToStringsList(m map[string]interface{}) map[string][]string {
+	result := make(map[string][]string)
+	for key, value := range m {
+		switch v := value.(type) {
+		case []interface{}:
+			var values []string
+			for _, item := range v {
+				values = append(values, fmt.Sprintf("%v", item))
+			}
+			result[key] = values
+		default:
+			result[key] = []string{fmt.Sprintf("%v", v)}
+		}
+	}
+
+	return result
+}

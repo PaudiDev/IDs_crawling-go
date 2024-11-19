@@ -2,15 +2,21 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"crawler/app/pkg/assert"
 	assetsHandler "crawler/app/pkg/assets-handler"
 	"crawler/app/pkg/crawler"
+	safews "crawler/app/pkg/safe-ws"
 	"crawler/app/pkg/shutdown"
 	"crawler/app/pkg/utils/httpx"
+	"crawler/app/pkg/utils/mapx"
 	"crawler/app/pkg/utils/pathx"
+
+	"github.com/gorilla/websocket"
 )
 
 func main() {
@@ -46,5 +52,18 @@ func main() {
 		"no user agents found in file",
 	)
 
-	crawler.Start(ctx, &config, statusLogFile)
+	dialer := websocket.Dialer{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+	conn, _, err := dialer.Dial(
+		config.Standard.WebSocket.WsUrl,
+		mapx.StringToStringsList(config.Standard.WebSocket.WsHeaders),
+	)
+	assert.NoError(err, "error connecting to websocket")
+	defer conn.Close()
+	conn.SetReadDeadline(time.Time{})
+	slog.Info(fmt.Sprintf("connected to websocket with url: %s", config.Standard.WebSocket.WsUrl))
+
+	crawler.Start(ctx, &config, safews.NewSafeConn(conn), statusLogFile)
 }

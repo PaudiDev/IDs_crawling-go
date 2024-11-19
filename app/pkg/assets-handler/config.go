@@ -33,6 +33,7 @@ type standard struct {
 	Urls              urls          `yaml:"urls"`
 	ItemsResponse     itemsResponse `yaml:"items_response"`
 	ItemResponse      itemResponse  `yaml:"item_response"`
+	WebSocket         websocket     `yaml:"websocket"`
 	SessionCookieName string        `yaml:"session_cookie_name"`
 	TimestampFormat   string        `yaml:"timestamp_format"`
 	InitialDelay      int           `yaml:"initial_delay"`
@@ -76,6 +77,11 @@ type itemsResponse struct {
 type itemResponse struct {
 	Item      string `yaml:"item"`
 	Timestamp string `yaml:"timestamp"`
+}
+
+type websocket struct {
+	WsUrl     string                 `yaml:"ws_url"`
+	WsHeaders map[string]interface{} `yaml:"ws_headers"`
 }
 
 func GetConfigFromFile(path string) Config {
