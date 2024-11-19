@@ -35,13 +35,13 @@ standard:
     items_url: "https://url/items"
     item_url: "https://url/items/<item_id>"         # Remove <item_id>, leave "/"
     item_url_after_id: "<item_id>/additional/info"  # Remove <item_id>, leave "/"
-    randomize_item_url_addition: true               # true: append randomly, false: append always
+    randomize_item_url_addition: true
   items_response:
-    items: "json_items_name_in_response"
-    id: "json_id_name_in_each_item_in_items"
+    items: "json_items_key_in_response"
+    id: "json_id_key_in_each_item_in_items"
   item_response:
-    item: "json_item_name_in_response"
-    timestamp: "json_timestamp_name_in_item"
+    item: "json_item_key_in_response"
+    timestamp: "json_timestamp_key_in_item"
   session_cookie_name: "cookie_name"
   timestamp_format: "item_timestamp_format"
   initial_delay: 1000000
