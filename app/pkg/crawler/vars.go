@@ -40,10 +40,10 @@ func NewCore(cfg *assetshandler.Config) *Core {
 	}
 }
 
-func NewState() *State {
+func NewState(cfg *assetshandler.Config) *State {
 	return &State{
 		CurrentID:    0,
 		MostRecentID: 0,
-		DelayNewest:  30000,
+		DelayNewest:  cfg.Standard.InitialDelay,
 	}
 }

@@ -38,3 +38,4 @@ standard:
     randomize_item_url_addition: true               # true: append randomly, false: append always 
   session_cookie_name: "cookie_name"
   timestamp_format: "item_timestamp_format"
+  initial_delay: 1000000

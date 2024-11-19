@@ -30,9 +30,10 @@ type http struct {
 }
 
 type standard struct {
+	Urls              urls   `yaml:"urls"`
 	SessionCookieName string `yaml:"session_cookie_name"`
 	TimestampFormat   string `yaml:"timestamp_format"`
-	Urls              urls   `yaml:"urls"`
+	InitialDelay      int    `yaml:"initial_delay"`
 }
 
 type stepData struct {

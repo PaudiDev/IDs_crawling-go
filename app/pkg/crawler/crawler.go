@@ -212,7 +212,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, statusLogFile *os.Fil
 	assert.NoError(err, "first cookie fetch must be succesful to start the crawler")
 
 	var core *Core = NewCore(cfg)
-	var state *State = NewState()
+	var state *State = NewState(cfg)
 	var outcome *Outcome = new(Outcome)
 
 	state.CurrentID, err = fetchHighestID(ctx, cfg, jar, headers, mainRand)

@@ -92,7 +92,8 @@ func adjustStep(
 	outcome *Outcome,
 ) int {
 	now := (int)(time.Now().UnixMilli())
-	if now-handler.UpdateTime < cfg.Http.StepData.MinChangeTime {
+	if now-handler.UpdateTime < cfg.Http.StepData.MinChangeTime ||
+		state.DelayNewest == cfg.Standard.InitialDelay {
 		return core.Step
 	}
 	handler.UpdateTime = now
@@ -162,7 +163,8 @@ func adjustConcurrency(
 	outcome *Outcome,
 ) int {
 	now := (int)(time.Now().UnixMilli())
-	if now-handler.UpdateTime < cfg.Http.ConcurrencyData.MinChangeTime {
+	if now-handler.UpdateTime < cfg.Http.ConcurrencyData.MinChangeTime ||
+		state.DelayNewest == cfg.Standard.InitialDelay {
 		return core.Concurrency
 	}
 	handler.UpdateTime = now
