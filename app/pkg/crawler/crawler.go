@@ -119,7 +119,7 @@ func (wk *worker) run(
 				headers[k] = v
 			}
 
-			item, err := fetchItem(wk.Ctx, cfg, jar, selectedItemID, headers, wk.Rand)
+			decodedResp, err := fetchItem(wk.Ctx, cfg, jar, selectedItemID, headers, wk.Rand)
 			if err != nil {
 				switch {
 				case errors.Is(err, customerrors.ErrorUnauthorized):
@@ -161,7 +161,8 @@ func (wk *worker) run(
 				state.MostRecentID = selectedItemID
 				state.Mu.Unlock()
 
-				rawTs := item.Timestamp
+				item := decodedResp[cfg.Standard.ItemResponse.Item].(map[string]interface{})
+				rawTs := item[cfg.Standard.ItemResponse.Timestamp].(string)
 				parsedTs, err := time.Parse(cfg.Standard.TimestampFormat, rawTs)
 				assert.NoError(err, "timestamp must be parsed succesfully")
 				tmp_d := (int)(time.Since(parsedTs).Milliseconds())
@@ -175,7 +176,7 @@ func (wk *worker) run(
 				logChan <- ctypes.LogData{
 					Level: slog.LevelDebug,
 					Msg: fmt.Sprintf("%v ----- %v ----- %v ----- %v",
-						item.ID, tmp_d, tmp_s, tmp_c),
+						selectedItemID, tmp_d, tmp_s, tmp_c),
 				}
 			}
 		}

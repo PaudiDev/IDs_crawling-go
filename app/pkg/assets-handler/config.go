@@ -30,10 +30,12 @@ type http struct {
 }
 
 type standard struct {
-	Urls              urls   `yaml:"urls"`
-	SessionCookieName string `yaml:"session_cookie_name"`
-	TimestampFormat   string `yaml:"timestamp_format"`
-	InitialDelay      int    `yaml:"initial_delay"`
+	Urls              urls          `yaml:"urls"`
+	ItemsResponse     itemsResponse `yaml:"items_response"`
+	ItemResponse      itemResponse  `yaml:"item_response"`
+	SessionCookieName string        `yaml:"session_cookie_name"`
+	TimestampFormat   string        `yaml:"timestamp_format"`
+	InitialDelay      int           `yaml:"initial_delay"`
 }
 
 type stepData struct {
@@ -64,6 +66,16 @@ type urls struct {
 	ItemUrl                string `yaml:"item_url"`
 	ItemUrlAfterID         string `yaml:"item_url_after_id"`
 	RandomizeItemUrlSuffix bool   `yaml:"randomize_item_url_addition"`
+}
+
+type itemsResponse struct {
+	Items string `yaml:"items"`
+	ID    string `yaml:"id"`
+}
+
+type itemResponse struct {
+	Item      string `yaml:"item"`
+	Timestamp string `yaml:"timestamp"`
 }
 
 func GetConfigFromFile(path string) Config {

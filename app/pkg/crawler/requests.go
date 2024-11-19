@@ -12,7 +12,6 @@ import (
 	"time"
 
 	assetshandler "crawler/app/pkg/assets-handler"
-	crawltypes "crawler/app/pkg/crawler/crawl-types"
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
 	"crawler/app/pkg/utils/httpx"
@@ -106,23 +105,21 @@ func fetchHighestID(
 		return 0, customerrors.InferHttpError(response.StatusCode)
 	}
 
-	var itemsContainer struct {
-		Items []crawltypes.Item
-	}
-	err = json.NewDecoder(response.Body).Decode(&itemsContainer)
+	var decodedResp map[string]interface{}
+	err = json.NewDecoder(response.Body).Decode(&decodedResp)
 	if err != nil {
 		return 0, err
 	}
 
-	var items []crawltypes.Item = itemsContainer.Items
-	var highestID int = items[0].ID
-	for _, item := range items[1:] {
-		if item.ID > highestID {
-			highestID = item.ID
+	items := decodedResp[cfg.Standard.ItemsResponse.Items].([]interface{})
+	var highestID float64 = 0
+	for _, item := range items {
+		if itemID := item.(map[string]interface{})[cfg.Standard.ItemsResponse.ID].(float64); itemID > highestID {
+			highestID = itemID
 		}
 	}
 
-	return highestID, nil
+	return int(highestID), nil
 }
 
 func fetchItem(
@@ -132,7 +129,7 @@ func fetchItem(
 	itemID int,
 	headers map[string]string,
 	randGen *rand.Rand,
-) (crawltypes.Item, error) {
+) (map[string]interface{}, error) {
 	url := cfg.Standard.Urls.ItemUrl + strconv.Itoa(itemID)
 
 	// This randomization is not the fastest but it is the simplest
@@ -145,26 +142,24 @@ func fetchItem(
 
 	req, err := httpx.BuildRequest(ctx, "GET", url, nil, headers)
 	if err != nil {
-		return crawltypes.Item{}, err
+		return nil, err
 	}
 
 	response, err := httpx.MakeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
 	if err != nil {
-		return crawltypes.Item{}, err
+		return nil, err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return crawltypes.Item{}, customerrors.InferHttpError(response.StatusCode)
+		return nil, customerrors.InferHttpError(response.StatusCode)
 	}
 
-	var itemContainer struct {
-		Item crawltypes.Item
-	}
-	err = json.NewDecoder(response.Body).Decode(&itemContainer)
+	var decodedResp map[string]interface{}
+	err = json.NewDecoder(response.Body).Decode(&decodedResp)
 	if err != nil {
-		return crawltypes.Item{}, err
+		return nil, err
 	}
 
-	return itemContainer.Item, nil
+	return decodedResp, nil
 }

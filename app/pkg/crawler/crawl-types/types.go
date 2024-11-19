@@ -1,10 +1,5 @@
 package crawltypes
 
-type Item struct {
-	ID        int    `json:"id"`
-	Timestamp string `json:"created_at_ts"`
-}
-
 type Handlers struct {
 	SHandler StepHandler
 	CHandler ConcurrencyHandler
