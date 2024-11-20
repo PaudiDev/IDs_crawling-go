@@ -79,12 +79,20 @@ func (wk *worker) run(
 			wk.Fatal = fmt.Errorf("worker %v ctx done", wk.ID)
 			return
 		default:
-			if outcome.RateLimits > cfg.Http.MaxRateLimitsPerSecond {
+			if func() int {
+				outcome.Mu.Lock()
+				defer outcome.Mu.Unlock()
+				return outcome.RateLimits
+			}() > cfg.Http.MaxRateLimitsPerSecond {
 				time.Sleep((time.Duration)(cfg.Http.RateLimitWait) * time.Second)
 			}
 
+			state.Mu.Lock()
+			core.Mu.Lock()
 			onNonExistingItem := state.CurrentID > state.MostRecentID+nonExistingOffset
 			onOldItems := core.Step < 0 && state.CurrentID < state.MostRecentID
+			core.Mu.Unlock()
+			state.Mu.Unlock()
 
 			var tmp_c int
 			if onNonExistingItem {
@@ -97,7 +105,11 @@ func (wk *worker) run(
 			core.Concurrencies = append(core.Concurrencies, core.Concurrency)
 			core.Mu.Unlock()
 
-			if wk.ID > core.Concurrency {
+			if wk.ID > func() int {
+				core.Mu.Lock()
+				defer core.Mu.Unlock()
+				return core.Concurrency
+			}() {
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
@@ -114,11 +126,11 @@ func (wk *worker) run(
 			core.Mu.Lock()
 			core.Step = tmp_s
 			core.Steps = append(core.Steps, core.Step)
+			core.Mu.Unlock()
 			state.Mu.Lock()
 			state.CurrentID += tmp_s
 			selectedItemID = state.CurrentID
 			state.Mu.Unlock()
-			core.Mu.Unlock()
 
 			for k, v := range createBaseHeaders(httpx.PickRandomUserAgent(wk.Rand)) {
 				headers[k] = v
@@ -154,8 +166,10 @@ func (wk *worker) run(
 				continue
 			}
 
+			outcome.Mu.Lock()
 			outcome.Successes++
 			outcome.ConsecutiveErrs = 0
+			outcome.Mu.Unlock()
 
 			if selectedItemID > func() int {
 				state.Mu.Lock()
