@@ -130,7 +130,7 @@ func adjustStep(
 	var step int = core.Step
 	core.Mu.Unlock()
 	outcome.Mu.Lock()
-	var errors int = outcome.NotFounds + outcome.NotFounds
+	var errors int = outcome.NotFounds + outcome.OtherErrs
 	outcome.Mu.Unlock()
 
 	step = max(step, 1)
@@ -234,7 +234,7 @@ func adjustConcurrency(
 	var maxConcurrency int = cfg.Core.MaxConcurrency
 	var minConcurrency int = cfg.Http.ConcurrencyData.MinConcurrency
 	outcome.Mu.Lock()
-	var errors int = outcome.NotFounds + outcome.NotFounds
+	var errors int = outcome.NotFounds + outcome.OtherErrs
 	outcome.Mu.Unlock()
 
 	if errors-func() int {
