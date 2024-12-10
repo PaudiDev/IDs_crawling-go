@@ -258,11 +258,12 @@ func adjustConcurrency(
 		state.Mu.Unlock()
 		switch {
 		case delay > cfg.Http.ConcurrencyData.MaxTime:
-			concurrency = min(concurrency+3, maxConcurrency)
-		case delay > cfg.Http.ConcurrencyData.MinTime:
 			concurrency = min(concurrency+1, maxConcurrency)
-		default:
+		case delay > cfg.Http.ConcurrencyData.MediumTime:
 			concurrency = max(concurrency-1, minConcurrency)
+		case delay > cfg.Http.ConcurrencyData.MinTime:
+		default:
+			concurrency = max(concurrency-2, maxConcurrency)
 		}
 	}
 
