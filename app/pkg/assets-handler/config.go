@@ -53,12 +53,13 @@ type stepData struct {
 }
 
 type concurrencyData struct {
-	MinChangeTime     int `yaml:"min_time_since_last_adjustment_milli"`
-	MaxErrorDeviation int `yaml:"max_error_deviation"`
-	MinConcurrency    int `yaml:"min_concurrency"`
-	MaxTime           int `yaml:"max_time"`
-	MediumTime        int `yaml:"medium_time"`
-	MinTime           int `yaml:"min_time"`
+	MinChangeTime        int `yaml:"min_time_since_last_adjustment_milli"`
+	MaxErrorDeviation    int `yaml:"max_error_deviation"`
+	MaxConsecutiveErrors int `yaml:"max_consecutive_errors"`
+	MinConcurrency       int `yaml:"min_concurrency"`
+	MaxTime              int `yaml:"max_time"`
+	MediumTime           int `yaml:"medium_time"`
+	MinTime              int `yaml:"min_time"`
 }
 
 type urls struct {

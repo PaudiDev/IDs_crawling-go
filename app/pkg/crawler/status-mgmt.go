@@ -230,6 +230,14 @@ func adjustConcurrency(
 	handler.UpdateTime = now
 	handler.Mu.Unlock()
 
+	if func() int {
+		outcome.Mu.Lock()
+		defer outcome.Mu.Unlock()
+		return outcome.ConsecutiveErrs
+	}() > cfg.Http.ConcurrencyData.MaxConsecutiveErrors {
+		return cfg.Http.ConcurrencyData.MinConcurrency
+	}
+
 	var concurrency int = core.Concurrency
 	var maxConcurrency int = cfg.Core.MaxConcurrency
 	var minConcurrency int = cfg.Http.ConcurrencyData.MinConcurrency

@@ -24,6 +24,7 @@ http:
   concurrency_data:
     min_time_since_last_adjustment_milli: 100
     max_error_deviation: 1
+    max_consecutive_errors: 3
     min_concurrency: 3
     max_time: 500
     medium_time: 350
