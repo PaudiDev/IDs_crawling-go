@@ -263,7 +263,7 @@ func adjustConcurrency(
 			concurrency = max(concurrency-1, minConcurrency)
 		case delay > cfg.Http.ConcurrencyData.MinTime:
 		default:
-			concurrency = max(concurrency-2, maxConcurrency)
+			concurrency = max(concurrency-2, minConcurrency)
 		}
 	}
 
