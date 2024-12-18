@@ -16,6 +16,7 @@ http:
     max_retries: 5
     max_time: 1000
     aggressive_time: 800
+    medium_aggressive_time: 650
     medium_time: 500
     min_time: 300
     retry_time: 300

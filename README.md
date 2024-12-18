@@ -93,6 +93,7 @@ This project relies on Docker to handle dependencies and environment isolation, 
          max_retries:
          max_time:
          aggressive_time:
+         medium_aggressive_time:
          medium_time:
          min_time:
          retry_time:
@@ -103,7 +104,7 @@ This project relies on Docker to handle dependencies and environment isolation, 
    - **`max_error_deviation`**: Maximum allowed deviation in errors (errors - successes) before retrying on the same ID if the last fetched item delay is lower than `retry_time`.
    - **`max_consecutive_errors`**: Number of consecutive errors allowed before setting the step to a negative value.
    - **`max_retries`**: Maximum amount of retries on the same ID (after hitting this the step will be set back to 1).
-   - **`max_time`, `aggressive_time`, `medium_time`, `min_time`**: Various thresholds for adjusting the step based on the fetch delay of the last fetched item.
+   - **`max_time`, `aggressive_time`, `medium_aggressive_time`, `medium_time`, `min_time`**: Various thresholds for adjusting the step based on the fetch delay of the last fetched item.
    - **`retry_time`**: Time to wait before retrying a failed request.
    - **`last_delay_offset`**: Determines the threshold for adjusting the step based on the difference between the last fetched item delay and the last best delay. If the difference exceeds this offset, the step decreases; if it is below the negative offset, the step increases.
 

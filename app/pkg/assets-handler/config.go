@@ -46,6 +46,7 @@ type stepData struct {
 	MaxRetries           int `yaml:"max_retries"`
 	MaxTime              int `yaml:"max_time"`
 	AggressiveTime       int `yaml:"aggressive_time"`
+	MediumAggressiveTime int `yaml:"medium_aggressive_time"`
 	MediumTime           int `yaml:"medium_time"`
 	MinTime              int `yaml:"min_time"`
 	RetryTime            int `yaml:"retry_time"`

@@ -162,7 +162,10 @@ func adjustStep(
 			step *= 2
 		case delay > cfg.Http.StepData.AggressiveTime:
 			maxStep = 10
-			step += 3
+			step += 2
+		case delay > cfg.Http.StepData.MediumAggressiveTime:
+			maxStep = 5
+			step++
 		case delay > cfg.Http.StepData.MediumTime:
 			if func() int {
 				core.Mu.Lock()
