@@ -76,8 +76,10 @@ type itemsResponse struct {
 }
 
 type itemResponse struct {
-	Item      string `yaml:"item"`
-	Timestamp string `yaml:"timestamp"`
+	Item            string `yaml:"item"`
+	Timestamp       string `yaml:"timestamp"`
+	ItemSuffix      string `yaml:"item_when_url_suffix"`
+	TimestampSuffix string `yaml:"timestamp_when_url_suffix"`
 }
 
 type websocket struct {

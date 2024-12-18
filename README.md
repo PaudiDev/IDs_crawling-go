@@ -174,10 +174,16 @@ This project relies on Docker to handle dependencies and environment isolation, 
       item_response:
          item:
          timestamp:
+         item_when_url_suffix:
+         timestamp_when_url_suffix:
    ```
 
-   - **`item`**: Key in the JSON response containing the item details.
-   - **`timestamp`**: Key specifying the timestamp field in the item details.
+   - **`item`**: Key in the JSON response containing the item details when `item_url_after_id` is not added to the url.
+   - **`timestamp`**: Key specifying the timestamp field in the item details when `item_url_after_id` is not added to the url.
+   - **`item_when_url_suffix`**: Key in the JSON response containing the item details when `item_url_after_id` is added to the url
+   - **`timestamp_when_url_suffix`**: Key specifying the timestamp field in the item details when `item_url_after_id` is added to the url
+
+   Keep the "when_url_suffix" the same as the default values if the JSON responses do not change
 
    #### **WebSocket**
 

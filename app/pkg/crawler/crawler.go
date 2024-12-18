@@ -136,7 +136,7 @@ func (wk *worker) run(
 				headers[k] = v
 			}
 
-			decodedResp, err := fetchItem(wk.Ctx, cfg, jar, selectedItemID, headers, wk.Rand)
+			decodedResp, appendedSuffix, err := fetchItem(wk.Ctx, cfg, jar, selectedItemID, headers, wk.Rand)
 			if err != nil {
 				switch {
 				case errors.Is(err, customerrors.ErrorUnauthorized):
@@ -206,8 +206,15 @@ func (wk *worker) run(
 				state.MostRecentID = selectedItemID
 				state.Mu.Unlock()
 
+				var tsKey string
+				if appendedSuffix {
+					tsKey = cfg.Standard.ItemResponse.TimestampSuffix
+				} else {
+					tsKey = cfg.Standard.ItemResponse.Timestamp
+				}
+
 				item := decodedResp[cfg.Standard.ItemResponse.Item].(map[string]interface{})
-				rawTs := item[cfg.Standard.ItemResponse.Timestamp].(string)
+				rawTs := item[tsKey].(string)
 				parsedTs, err := time.Parse(cfg.Standard.TimestampFormat, rawTs)
 				assert.NoError(err, "timestamp must be parsed succesfully")
 				tmp_d := (int)(time.Since(parsedTs).Milliseconds())

@@ -129,7 +129,8 @@ func fetchItem(
 	itemID int,
 	headers map[string]string,
 	randGen *rand.Rand,
-) (map[string]interface{}, error) {
+) (map[string]interface{}, bool, error) {
+	var appendedSuffix bool
 	url := cfg.Standard.Urls.ItemUrl + strconv.Itoa(itemID)
 
 	// This randomization is not the fastest but it is the simplest
@@ -138,28 +139,31 @@ func fetchItem(
 	// on each request based on the proxy, but this would increase the coupling
 	if !cfg.Standard.Urls.RandomizeItemUrlSuffix || randGen.Intn(2) == 1 {
 		url += cfg.Standard.Urls.ItemUrlAfterID
+		appendedSuffix = true
+	} else {
+		appendedSuffix = false
 	}
 
 	req, err := httpx.BuildRequest(ctx, "GET", url, nil, headers)
 	if err != nil {
-		return nil, err
+		return nil, appendedSuffix, err
 	}
 
 	response, err := httpx.MakeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
 	if err != nil {
-		return nil, err
+		return nil, appendedSuffix, err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return nil, customerrors.InferHttpError(response.StatusCode)
+		return nil, appendedSuffix, customerrors.InferHttpError(response.StatusCode)
 	}
 
 	var decodedResp map[string]interface{}
 	err = json.NewDecoder(response.Body).Decode(&decodedResp)
 	if err != nil {
-		return nil, err
+		return nil, appendedSuffix, err
 	}
 
-	return decodedResp, nil
+	return decodedResp, appendedSuffix, nil
 }

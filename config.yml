@@ -43,6 +43,8 @@ standard:
   item_response:
     item: "json_item_key_in_response"
     timestamp: "json_timestamp_key_in_item"
+    item_when_url_suffix: "json_item_key_in_response_when_item_url_addition"
+    timestamp_when_url_suffix: "json_timestamp_key_in_item_when_item_url_addition"
   websocket:
     ws_url: "ws://<host>:<port>/<path>"
     ws_headers:
