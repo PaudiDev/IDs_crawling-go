@@ -163,16 +163,17 @@ func adjustStep(
 		case delay > cfg.Http.StepData.AggressiveTime:
 			maxStep = 10
 			step += 2
-		case delay > cfg.Http.StepData.MediumAggressiveTime:
-			maxStep = 5
-			step++
 		case delay > cfg.Http.StepData.MediumTime:
 			if func() int {
 				core.Mu.Lock()
 				defer core.Mu.Unlock()
 				return core.Concurrency
 			}() == cfg.Core.MaxConcurrency {
-				maxStep = 3
+				if delay > cfg.Http.StepData.MediumAggressiveTime {
+					maxStep = 5
+				} else {
+					maxStep = 3
+				}
 				step++
 			} else {
 				maxStep = 1
