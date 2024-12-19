@@ -125,7 +125,7 @@ This project relies on Docker to handle dependencies and environment isolation, 
 
    - **`min_time_since_last_adjustment_milli`**: Minimum time in milliseconds before another adjustment to the concurrency can be made.
    - **`max_error_deviation`**: Maximum allowed deviation in errors (errors - successes) before drastically decreasing the concurrency.
-   - **`max_consecutive_errors`**: Number of consecutive errors allowed before setting the concurrency to `min_concurrency`.
+   - **`max_consecutive_errors`**: Number of consecutive errors allowed before halving the concurrency.
    - **`min_concurrency`**: Minimum allowed concurrency level.
    - **`max_time`, `medium_time`, `min_time`**: Various thresholds for adjusting the concurrency based on the fetch delay of the last fetched item.
 

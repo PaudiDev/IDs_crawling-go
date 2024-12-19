@@ -234,17 +234,18 @@ func adjustConcurrency(
 	handler.UpdateTime = now
 	handler.Mu.Unlock()
 
+	var concurrency int = core.Concurrency
+	var maxConcurrency int = cfg.Core.MaxConcurrency
+	var minConcurrency int = cfg.Http.ConcurrencyData.MinConcurrency
+
 	if func() int {
 		outcome.Mu.Lock()
 		defer outcome.Mu.Unlock()
 		return outcome.ConsecutiveErrs
 	}() > cfg.Http.ConcurrencyData.MaxConsecutiveErrors {
-		return cfg.Http.ConcurrencyData.MinConcurrency
+		return max(concurrency/2, minConcurrency)
 	}
 
-	var concurrency int = core.Concurrency
-	var maxConcurrency int = cfg.Core.MaxConcurrency
-	var minConcurrency int = cfg.Http.ConcurrencyData.MinConcurrency
 	outcome.Mu.Lock()
 	var errors int = outcome.NotFounds + outcome.OtherErrs
 	outcome.Mu.Unlock()
@@ -272,8 +273,8 @@ func adjustConcurrency(
 		case delay > cfg.Http.ConcurrencyData.MaxTime:
 			concurrency = min(concurrency+1, maxConcurrency)
 		case delay > cfg.Http.ConcurrencyData.MediumTime:
-			concurrency = max(concurrency-1, minConcurrency)
 		case delay > cfg.Http.ConcurrencyData.MinTime:
+			concurrency = max(concurrency-1, minConcurrency)
 		default:
 			concurrency = max(concurrency-2, minConcurrency)
 		}
