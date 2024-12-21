@@ -87,7 +87,10 @@ This project relies on Docker to handle dependencies and environment isolation, 
 
    ```yaml
       step_data:
-         min_time_since_last_adjustment_milli:
+         new_adjustment_config:
+            min_time_since_last_adjustment_high_delay_milli:
+            min_time_since_last_adjustment_low_delay_milli:
+            high_delay_threshold:
          max_error_deviation:
          max_consecutive_errors:
          max_retries:
@@ -100,7 +103,8 @@ This project relies on Docker to handle dependencies and environment isolation, 
          last_delay_offset:
    ```
 
-   - **`min_time_since_last_adjustment_milli`**: Minimum time in milliseconds before another adjustment to the step can be made.
+   - **`min_time_since_last_adjustment_high/low_delay_milli`**: Minimum time in milliseconds before another adjustment to the step can be made, when the delay is respectively high or low.
+   - **`high_delay_threshold`**: Threshold that specifies when one of the two `min_time_since_last_adjustment_high/low_delay_milly` should be used
    - **`max_error_deviation`**: Maximum allowed deviation in errors (errors - successes) before retrying on the same ID if the last fetched item delay is lower than `retry_time`.
    - **`max_consecutive_errors`**: Number of consecutive errors allowed before setting the step to a negative value.
    - **`max_retries`**: Maximum amount of retries on the same ID (after hitting this the step will be set back to 1).
@@ -114,7 +118,10 @@ This project relies on Docker to handle dependencies and environment isolation, 
 
    ```yaml
       concurrency_data:
-         min_time_since_last_adjustment_milli:
+         new_adjustment_config:
+            min_time_since_last_adjustment_high_delay_milli:
+            min_time_since_last_adjustment_low_delay_milli:
+            high_delay_threshold:
          max_error_deviation:
          max_consecutive_errors:
          min_concurrency:
@@ -123,7 +130,8 @@ This project relies on Docker to handle dependencies and environment isolation, 
          min_time:
    ```
 
-   - **`min_time_since_last_adjustment_milli`**: Minimum time in milliseconds before another adjustment to the concurrency can be made.
+   - **`min_time_since_last_adjustment_high/low_delay_milli`**: Minimum time in milliseconds before another adjustment to the concurrency can be made, when the delay is respectively high or low.
+   - **`high_delay_threshold`**: Threshold that specifies when one of the two `min_time_since_last_adjustment_high/low_delay_milly` should be used
    - **`max_error_deviation`**: Maximum allowed deviation in errors (errors - successes) before drastically decreasing the concurrency.
    - **`max_consecutive_errors`**: Number of consecutive errors allowed before halving the concurrency.
    - **`min_concurrency`**: Minimum allowed concurrency level.

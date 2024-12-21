@@ -102,13 +102,18 @@ func adjustStep(
 	outcome *Outcome,
 ) int {
 	now := (int)(time.Now().UnixMilli())
+
+	state.Mu.Lock()
+	delay := state.DelayNewest
+	state.Mu.Unlock()
+
 	handler.Mu.Lock()
-	if now-handler.UpdateTime < cfg.Http.StepData.MinChangeTime ||
-		func() int {
-			state.Mu.Lock()
-			defer state.Mu.Unlock()
-			return state.DelayNewest
-		}() == cfg.Standard.InitialDelay {
+	timeSinceLastAdjustment := now - handler.UpdateTime
+	isHighDelay := delay >= cfg.Http.StepData.NewAdjustmentCfg.HighDelayThreshold
+
+	if (isHighDelay && timeSinceLastAdjustment < cfg.Http.StepData.NewAdjustmentCfg.MinChangeTimeHighDelay) ||
+		(!isHighDelay && timeSinceLastAdjustment < cfg.Http.StepData.NewAdjustmentCfg.MinChangeTimeLowDelay) ||
+		delay == cfg.Standard.InitialDelay {
 		core.Mu.Lock()
 		defer core.Mu.Unlock()
 		handler.Mu.Unlock()
@@ -140,11 +145,7 @@ func adjustStep(
 		return outcome.Successes
 	}() > cfg.Http.StepData.MaxErrorDeviation {
 		handler.Mu.Lock()
-		if func() int {
-			state.Mu.Lock()
-			defer state.Mu.Unlock()
-			return state.DelayNewest
-		}() < cfg.Http.StepData.RetryTime &&
+		if delay < cfg.Http.StepData.RetryTime &&
 			handler.Retries < cfg.Http.StepData.MaxRetries {
 			step = 0
 			handler.Retries++
@@ -153,9 +154,6 @@ func adjustStep(
 		}
 		handler.Mu.Unlock()
 	} else {
-		state.Mu.Lock()
-		delay := state.DelayNewest
-		state.Mu.Unlock()
 		switch {
 		case delay > cfg.Http.StepData.MaxTime:
 			maxStep = 20
@@ -219,18 +217,24 @@ func adjustConcurrency(
 	outcome *Outcome,
 ) int {
 	now := (int)(time.Now().UnixMilli())
+
+	state.Mu.Lock()
+	delay := state.DelayNewest
+	state.Mu.Unlock()
+
 	handler.Mu.Lock()
-	if now-handler.UpdateTime < cfg.Http.ConcurrencyData.MinChangeTime ||
-		func() int {
-			state.Mu.Lock()
-			defer state.Mu.Unlock()
-			return state.DelayNewest
-		}() == cfg.Standard.InitialDelay {
+	timeSinceLastAdjustment := now - handler.UpdateTime
+	isHighDelay := delay >= cfg.Http.ConcurrencyData.NewAdjustmentCfg.HighDelayThreshold
+
+	if (isHighDelay && timeSinceLastAdjustment < cfg.Http.ConcurrencyData.NewAdjustmentCfg.MinChangeTimeHighDelay) ||
+		(!isHighDelay && timeSinceLastAdjustment < cfg.Http.ConcurrencyData.NewAdjustmentCfg.MinChangeTimeLowDelay) ||
+		delay == cfg.Standard.InitialDelay {
 		core.Mu.Lock()
 		defer core.Mu.Unlock()
 		handler.Mu.Unlock()
 		return core.Concurrency
 	}
+
 	handler.UpdateTime = now
 	handler.Mu.Unlock()
 
@@ -256,19 +260,12 @@ func adjustConcurrency(
 		return outcome.Successes
 	}() > cfg.Http.ConcurrencyData.MaxErrorDeviation {
 		switch {
-		case func() int {
-			state.Mu.Lock()
-			defer state.Mu.Unlock()
-			return state.DelayNewest
-		}() > cfg.Http.ConcurrencyData.MediumTime:
+		case delay > cfg.Http.ConcurrencyData.MediumTime:
 			concurrency = max(concurrency-1, minConcurrency)
 		default:
 			concurrency = max(concurrency-3, minConcurrency)
 		}
 	} else {
-		state.Mu.Lock()
-		delay := state.DelayNewest
-		state.Mu.Unlock()
 		switch {
 		case delay > cfg.Http.ConcurrencyData.MaxTime:
 			concurrency = min(concurrency+1, maxConcurrency)

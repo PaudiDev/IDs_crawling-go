@@ -10,7 +10,10 @@ http:
   rate_limit_wait_seconds: 3
 
   step_data:
-    min_time_since_last_adjustment_milli: 100
+    new_adjustment_config:
+      min_time_since_last_adjustment_high_delay_milli: 100
+      min_time_since_last_adjustment_low_delay_milli: 50
+      high_delay_threshold: 300
     max_error_deviation: 1
     max_consecutive_errors: 3
     max_retries: 5
@@ -23,7 +26,10 @@ http:
     last_delay_offset: 300
   
   concurrency_data:
-    min_time_since_last_adjustment_milli: 100
+    new_adjustment_config:
+      min_time_since_last_adjustment_high_delay_milli: 100
+      min_time_since_last_adjustment_low_delay_milli: 50
+      high_delay_threshold: 300
     max_error_deviation: 1
     max_consecutive_errors: 3
     min_concurrency: 3

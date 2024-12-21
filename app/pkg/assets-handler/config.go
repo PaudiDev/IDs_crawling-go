@@ -40,27 +40,33 @@ type standard struct {
 }
 
 type stepData struct {
-	MinChangeTime        int `yaml:"min_time_since_last_adjustment_milli"`
-	MaxErrorDeviation    int `yaml:"max_error_deviation"`
-	MaxConsecutiveErrors int `yaml:"max_consecutive_errors"`
-	MaxRetries           int `yaml:"max_retries"`
-	MaxTime              int `yaml:"max_time"`
-	AggressiveTime       int `yaml:"aggressive_time"`
-	MediumAggressiveTime int `yaml:"medium_aggressive_time"`
-	MediumTime           int `yaml:"medium_time"`
-	MinTime              int `yaml:"min_time"`
-	RetryTime            int `yaml:"retry_time"`
-	LastDelayOffset      int `yaml:"last_delay_offset"`
+	NewAdjustmentCfg     newAdjustmentCfg `yaml:"new_adjustment_config"`
+	MaxErrorDeviation    int              `yaml:"max_error_deviation"`
+	MaxConsecutiveErrors int              `yaml:"max_consecutive_errors"`
+	MaxRetries           int              `yaml:"max_retries"`
+	MaxTime              int              `yaml:"max_time"`
+	AggressiveTime       int              `yaml:"aggressive_time"`
+	MediumAggressiveTime int              `yaml:"medium_aggressive_time"`
+	MediumTime           int              `yaml:"medium_time"`
+	MinTime              int              `yaml:"min_time"`
+	RetryTime            int              `yaml:"retry_time"`
+	LastDelayOffset      int              `yaml:"last_delay_offset"`
 }
 
 type concurrencyData struct {
-	MinChangeTime        int `yaml:"min_time_since_last_adjustment_milli"`
-	MaxErrorDeviation    int `yaml:"max_error_deviation"`
-	MaxConsecutiveErrors int `yaml:"max_consecutive_errors"`
-	MinConcurrency       int `yaml:"min_concurrency"`
-	MaxTime              int `yaml:"max_time"`
-	MediumTime           int `yaml:"medium_time"`
-	MinTime              int `yaml:"min_time"`
+	NewAdjustmentCfg     newAdjustmentCfg `yaml:"new_adjustment_config"`
+	MaxErrorDeviation    int              `yaml:"max_error_deviation"`
+	MaxConsecutiveErrors int              `yaml:"max_consecutive_errors"`
+	MinConcurrency       int              `yaml:"min_concurrency"`
+	MaxTime              int              `yaml:"max_time"`
+	MediumTime           int              `yaml:"medium_time"`
+	MinTime              int              `yaml:"min_time"`
+}
+
+type newAdjustmentCfg struct {
+	MinChangeTimeHighDelay int `yaml:"min_time_since_last_adjustment_high_delay_milli"`
+	MinChangeTimeLowDelay  int `yaml:"min_time_since_last_adjustment_low_delay_milli"`
+	HighDelayThreshold     int `yaml:"high_delay_threshold"`
 }
 
 type urls struct {
