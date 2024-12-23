@@ -90,7 +90,7 @@ type itemResponse struct {
 }
 
 type websocket struct {
-	WsUrl     string                 `yaml:"ws_url"`
+	WsUrls    []string               `yaml:"ws_urls"`
 	WsHeaders map[string]interface{} `yaml:"ws_headers"`
 }
 

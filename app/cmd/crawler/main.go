@@ -56,14 +56,20 @@ func main() {
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
-	conn, _, err := dialer.Dial(
-		config.Standard.WebSocket.WsUrl,
-		mapx.StringToStringsList(config.Standard.WebSocket.WsHeaders),
-	)
-	assert.NoError(err, "error connecting to websocket")
-	defer conn.Close()
-	conn.SetReadDeadline(time.Time{})
-	slog.Info(fmt.Sprintf("connected to websocket with url: %s", config.Standard.WebSocket.WsUrl))
 
-	crawler.Start(ctx, &config, safews.NewSafeConn(conn), statusLogFile)
+	safeConns := make([]*safews.SafeConn, len(config.Standard.WebSocket.WsUrls))
+	validFormatHeaders := mapx.StringToStringsList(config.Standard.WebSocket.WsHeaders)
+	for idx, wsUrl := range config.Standard.WebSocket.WsUrls {
+		conn, _, err := dialer.Dial(
+			wsUrl,
+			validFormatHeaders,
+		)
+		assert.NoError(err, "error connecting to websocket")
+		defer conn.Close()
+		conn.SetReadDeadline(time.Time{})
+		slog.Info(fmt.Sprintf("connected to websocket with url: %s", wsUrl))
+		safeConns[idx] = safews.NewSafeConn(conn)
+	}
+
+	crawler.Start(ctx, &config, safeConns, statusLogFile)
 }

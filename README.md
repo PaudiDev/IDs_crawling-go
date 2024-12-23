@@ -198,14 +198,17 @@ This project relies on Docker to handle dependencies and environment isolation, 
 
    ```yaml
       websocket:
-         ws_url:
+         ws_urls:
+            -
+            -
+            -
          ws_headers:
             header_name1:
             header_name2:
             header_name3:
    ```
 
-   - **`ws_url`**: The URL of the websocket server that will receive the requests response to `item_url` in JSON format (knowledge of websocket is expected). If the websocket server is hosted on the same machine that host the docker container, but not in a docker container, you can use 'host.docker.internal' for the host part instead of the machine private IP.
+   - **`ws_urls`**: The URLs of the websockets servers that will receive the requests responses to `item_url` in JSON format (knowledge of websocket is expected). The system will alternate the servers cycling through them; if only one server is used, simply use a single "-" with the url next to it. If the websocket server is hosted on the same machine that hosts the docker container, but not in a docker container, you can use 'host.docker.internal' for the host part instead of the machine private IP.
    - **`ws_headers`**: Additional headers you want to be sent to the websocket server in order to allow the connection. The `header_name<x>` keys are simple placeholders. You can modify them, their amount, set multiple values for the same key and leave this setting empty if you do not need to send additional headers.
 
    #### **Other Settings**

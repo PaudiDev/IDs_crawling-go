@@ -36,7 +36,7 @@ func (wk *worker) run(
 	state *State,
 	outcome *Outcome,
 	handlers *crawltypes.Handlers,
-	conn *safews.SafeConn,
+	conns []*safews.SafeConn,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -62,6 +62,9 @@ func (wk *worker) run(
 			}
 		}
 	}()
+
+	var currentConnIdx int = 0
+	var connsAmount int = len(conns)
 
 	jar, err := cookiejar.New(nil)
 	assert.NoError(err, fmtx.Worker("cookie jar must be created to start the worker", wk.ID))
@@ -190,7 +193,7 @@ func (wk *worker) run(
 						return
 					}
 
-					err = conn.WriteMessage(websocket.TextMessage, jsonResponse)
+					err = conns[currentConnIdx].WriteMessage(websocket.TextMessage, jsonResponse)
 					if err != nil {
 						logChan <- ctypes.LogData{
 							Level: slog.LevelError,
@@ -200,6 +203,7 @@ func (wk *worker) run(
 							),
 						}
 					}
+					currentConnIdx = (currentConnIdx + 1) % connsAmount
 				}()
 
 				state.Mu.Lock()
@@ -249,7 +253,7 @@ func (wk *worker) Log(logChan <-chan ctypes.LogData) {
 	}
 }
 
-func Start(ctx context.Context, cfg *assetshandler.Config, conn *safews.SafeConn, statusLogFile *os.File) {
+func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeConn, statusLogFile *os.File) {
 	slog.Info("Crawler Started...")
 
 	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -283,7 +287,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conn *safews.SafeConn
 			Rand: rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go wk.run(cfg, core, state, outcome, handlers, conn)
+		go wk.run(cfg, core, state, outcome, handlers, conns)
 	}
 
 	slog.Info(fmt.Sprintf("%v workers Started...", cfg.Core.MaxConcurrency))

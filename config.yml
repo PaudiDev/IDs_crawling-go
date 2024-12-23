@@ -53,7 +53,10 @@ standard:
     item_when_url_suffix: "json_item_key_in_response_when_item_url_addition"
     timestamp_when_url_suffix: "json_timestamp_key_in_item_when_item_url_addition"
   websocket:
-    ws_url: "ws://<host>:<port>/<path>"
+    ws_urls:
+      - "ws://<host1>:<port1>/<path1>"
+      - "ws://<host2>:<port2>/<path2>"
+      - "ws://<host3>:<port3>/<path3>"
     ws_headers:
       header_name1: "header_value1"
       header_name2: "header_value2"
