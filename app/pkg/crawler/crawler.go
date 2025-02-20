@@ -220,7 +220,7 @@ func (wk *worker) run(
 				item := decodedResp[cfg.Standard.ItemResponse.Item].(map[string]interface{})
 				rawTs := item[tsKey].(string)
 				parsedTs, err := time.Parse(cfg.Standard.TimestampFormat, rawTs)
-				assert.NoError(err, "timestamp must be parsed succesfully")
+				assert.NoError(err, "timestamp must be parsed successfully")
 				tmp_d := (int)(time.Since(parsedTs).Milliseconds())
 
 				state.Mu.Lock()
@@ -263,7 +263,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	assert.NoError(err, "cookie jar must be created to start the crawler")
 
 	err = fetchCookie(ctx, cfg, jar, cfg.Standard.SessionCookieName, headers, mainRand)
-	assert.NoError(err, "first cookie fetch must be succesful to start the crawler")
+	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
 
 	var core *Core = NewCore(cfg)
 	var state *State = NewState(cfg)
@@ -271,7 +271,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 
 	state.CurrentID, err = fetchHighestID(ctx, cfg, jar, headers, mainRand)
 	assert.NoError(
-		err, "highest id fetch must be succesful to start the crawler",
+		err, "highest id fetch must be successful to start the crawler",
 		assert.AssertData{
 			"CookieJar": jar,
 			"Headers":   headers,
