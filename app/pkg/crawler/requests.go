@@ -21,7 +21,7 @@ func fetchCookie(
 	ctx context.Context,
 	cfg *assetshandler.Config,
 	jar http.CookieJar,
-	targetCookieName string,
+	targetCookieNames []string,
 	headers map[string]string,
 	randGen *rand.Rand,
 ) error {
@@ -47,20 +47,34 @@ func fetchCookie(
 		return fmt.Errorf("no cookies found in response")
 	}
 
+	targetCookiesAmount := len(targetCookieNames)
 	for _, cookie := range cookies {
-		if cookie.Name == targetCookieName {
-			return nil
+		for _, targetCookieName := range targetCookieNames {
+			if cookie.Name == targetCookieName {
+				targetCookiesAmount--
+				break
+			}
 		}
 	}
 
-	return fmt.Errorf("target cookie not found in response\nCookies: %+v", cookies)
+	if targetCookiesAmount > 0 {
+		var cookieSingPlur string
+		if targetCookiesAmount == 1 {
+			cookieSingPlur = "cookie"
+		} else {
+			cookieSingPlur = "cookies"
+		}
+		return fmt.Errorf("%v target %s not found in response\nCookies: %+v", targetCookiesAmount, cookieSingPlur, cookies)
+	}
+
+	return nil
 }
 
 func fetchCookieLoop(
 	ctx context.Context,
 	cfg *assetshandler.Config,
 	jar http.CookieJar,
-	targetCookieName string,
+	targetCookieNames []string,
 	headers map[string]string,
 	randGen *rand.Rand,
 	logChan chan<- ctypes.LogData,
@@ -72,7 +86,7 @@ func fetchCookieLoop(
 		case <-ctx.Done():
 			return
 		default:
-			err := fetchCookie(ctx, cfg, jar, targetCookieName, headers, randGen)
+			err := fetchCookie(ctx, cfg, jar, targetCookieNames, headers, randGen)
 			if err != nil {
 				logChan <- ctypes.LogData{
 					Level: slog.LevelError,

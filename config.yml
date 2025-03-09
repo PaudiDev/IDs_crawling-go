@@ -61,6 +61,9 @@ standard:
       header_name1: "header_value1"
       header_name2: "header_value2"
       header_name3: "header_value3"
-  session_cookie_name: "cookie_name"
+  session_cookie_names:
+    - "cookie_name1"
+    - "cookie_name2"
+    - "cookie_name3"
   timestamp_format: "item_timestamp_format"
   initial_delay: 1000000

@@ -214,12 +214,15 @@ This project relies on Docker to handle dependencies and environment isolation, 
    #### **Other Settings**
 
    ```yaml
-      session_cookie_name:
+      session_cookie_names:
+         -
+         -
+         -
       timestamp_format:
       initial_delay:
    ```
 
-   - **`session_cookie_name`**: Name of the session cookie used for requests. This cookie must always be present in the client cookies. If this condition is ever not satisfied the program is intended to stop.
+   - **`session_cookie_names`**: The names of the session cookies used for requests. All of these cookies must always be present in the client cookies. If this condition is ever not satisfied the program should be stopped by the user, which will be notified by the logs (not automatically stopped for stability).
    - **`timestamp_format`**: Format of the timestamp in the item details.
    - **`initial_delay`**: Initial value of the variable that keeps track of the last best delay of an item. Set this value so that it is much higher than the average highest delay of any possible item.
 
