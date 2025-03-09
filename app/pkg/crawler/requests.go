@@ -91,6 +91,11 @@ func fetchCookie(
 				break
 			}
 		}
+
+		if targetCookiesAmount == 0 {
+			*jar = tmpJar
+			return nil
+		}
 	}
 
 	if targetCookiesAmount > 0 {
