@@ -71,8 +71,8 @@ func (wk *worker) run(
 
 	headers := createBaseHeaders(httpx.PickRandomUserAgent(wk.Rand))
 
-	fetchCookie(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieName, headers, wk.Rand)
-	go fetchCookieLoop(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieName, headers, wk.Rand, logChan)
+	fetchCookie(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieNames, headers, wk.Rand)
+	go fetchCookieLoop(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieNames, headers, wk.Rand, logChan)
 
 	var nonExistingOffset int = 500
 	var selectedItemID int
@@ -143,7 +143,7 @@ func (wk *worker) run(
 			if err != nil {
 				switch {
 				case errors.Is(err, customerrors.ErrorUnauthorized):
-					fetchCookie(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieName, headers, wk.Rand)
+					fetchCookie(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieNames, headers, wk.Rand)
 					outcome.Mu.Lock()
 					outcome.OtherErrs++
 					outcome.Mu.Unlock()
@@ -262,7 +262,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	jar, err := cookiejar.New(nil)
 	assert.NoError(err, "cookie jar must be created to start the crawler")
 
-	err = fetchCookie(ctx, cfg, jar, cfg.Standard.SessionCookieName, headers, mainRand)
+	err = fetchCookie(ctx, cfg, jar, cfg.Standard.SessionCookieNames, headers, mainRand)
 	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
 
 	var core *Core = NewCore(cfg)

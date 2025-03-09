@@ -30,13 +30,13 @@ type http struct {
 }
 
 type standard struct {
-	Urls              urls          `yaml:"urls"`
-	ItemsResponse     itemsResponse `yaml:"items_response"`
-	ItemResponse      itemResponse  `yaml:"item_response"`
-	WebSocket         websocket     `yaml:"websocket"`
-	SessionCookieName string        `yaml:"session_cookie_name"`
-	TimestampFormat   string        `yaml:"timestamp_format"`
-	InitialDelay      int           `yaml:"initial_delay"`
+	Urls               urls          `yaml:"urls"`
+	ItemsResponse      itemsResponse `yaml:"items_response"`
+	ItemResponse       itemResponse  `yaml:"item_response"`
+	WebSocket          websocket     `yaml:"websocket"`
+	SessionCookieNames []string      `yaml:"session_cookie_names"`
+	TimestampFormat    string        `yaml:"timestamp_format"`
+	InitialDelay       int           `yaml:"initial_delay"`
 }
 
 type stepData struct {
