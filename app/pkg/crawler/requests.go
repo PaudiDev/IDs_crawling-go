@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"strconv"
 	"time"
@@ -20,17 +21,54 @@ import (
 func fetchCookie(
 	ctx context.Context,
 	cfg *assetshandler.Config,
-	jar http.CookieJar,
+	jar *http.CookieJar,
 	targetCookieNames []string,
 	headers map[string]string,
 	randGen *rand.Rand,
 ) error {
+	parsedUrl, err := url.Parse(cfg.Standard.Urls.BaseUrl)
+	if err != nil {
+		return fmt.Errorf("could not parse the base url: %w", err)
+	}
+
+	var cookies []*http.Cookie = (*jar).Cookies(parsedUrl)
+
+	// using tmp cookies to avoid modifying the original jar,
+	// ensuring other goroutines that use the jar to keep their cookies
+	// until this function is completed
+	tmpCookies := make([]*http.Cookie, len(cookies))
+	idx := 0
+	var isTarget bool
+
+	// remove target cookies from the tmp cookies
+	for _, cookie := range cookies {
+		isTarget = false
+		for _, targetCookieName := range targetCookieNames {
+			if cookie.Name == targetCookieName {
+				isTarget = true
+				break
+			}
+		}
+		if !isTarget {
+			tmpCookies[idx] = cookie
+			idx++
+		}
+	}
+	// at this point tmpCookies[idx:] contains nil values, so we must remove them
+	tmpCookies = tmpCookies[:idx]
+
+	tmpJar, err := cookiejar.New(nil)
+	if err != nil {
+		return fmt.Errorf("could not create a new cookie jar: %w", err)
+	}
+	tmpJar.SetCookies(parsedUrl, tmpCookies)
+
 	req, err := httpx.BuildRequest(ctx, "GET", cfg.Standard.Urls.BaseUrl, nil, headers)
 	if err != nil {
 		return err
 	}
 
-	response, err := httpx.MakeRequestWithProxy(req, jar, cfg.Http.Timeout, randGen)
+	response, err := httpx.MakeRequestWithProxy(req, tmpJar, cfg.Http.Timeout, randGen)
 	if err != nil {
 		return err
 	}
@@ -40,17 +78,15 @@ func fetchCookie(
 		return customerrors.InferHttpError(response.StatusCode)
 	}
 
-	// if this returns an error it is already handled by buildRequest
-	parsedUrl, _ := url.Parse(cfg.Standard.Urls.BaseUrl)
-	var cookies []*http.Cookie = jar.Cookies(parsedUrl)
-	if cookies == nil {
+	newCookies := tmpJar.Cookies(parsedUrl)
+	if newCookies == nil {
 		return fmt.Errorf("no cookies found in response")
 	}
 
 	targetCookiesAmount := len(targetCookieNames)
-	for _, cookie := range cookies {
+	for _, newCookie := range newCookies {
 		for _, targetCookieName := range targetCookieNames {
-			if cookie.Name == targetCookieName {
+			if newCookie.Name == targetCookieName {
 				targetCookiesAmount--
 				break
 			}
@@ -64,7 +100,7 @@ func fetchCookie(
 		} else {
 			cookieSingPlur = "cookies"
 		}
-		return fmt.Errorf("%v target %s not found in response\nCookies: %+v", targetCookiesAmount, cookieSingPlur, cookies)
+		return fmt.Errorf("%v target %s not found in response\nFound Cookies: %+v", targetCookiesAmount, cookieSingPlur, newCookies)
 	}
 
 	return nil
@@ -73,7 +109,7 @@ func fetchCookie(
 func fetchCookieLoop(
 	ctx context.Context,
 	cfg *assetshandler.Config,
-	jar http.CookieJar,
+	jar *http.CookieJar,
 	targetCookieNames []string,
 	headers map[string]string,
 	randGen *rand.Rand,

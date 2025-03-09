@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"net/http"
 	"net/http/cookiejar"
 	"os"
 	"time"
@@ -66,13 +67,16 @@ func (wk *worker) run(
 	var currentConnIdx int = 0
 	var connsAmount int = len(conns)
 
-	jar, err := cookiejar.New(nil)
+	cookieJar, err := cookiejar.New(nil)
 	assert.NoError(err, fmtx.Worker("cookie jar must be created to start the worker", wk.ID))
+
+	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
+	var jar http.CookieJar = cookieJar
 
 	headers := createBaseHeaders(httpx.PickRandomUserAgent(wk.Rand))
 
-	fetchCookie(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieNames, headers, wk.Rand)
-	go fetchCookieLoop(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieNames, headers, wk.Rand, logChan)
+	fetchCookie(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, headers, wk.Rand)
+	go fetchCookieLoop(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, headers, wk.Rand, logChan)
 
 	var nonExistingOffset int = 500
 	var selectedItemID int
@@ -143,7 +147,7 @@ func (wk *worker) run(
 			if err != nil {
 				switch {
 				case errors.Is(err, customerrors.ErrorUnauthorized):
-					fetchCookie(wk.Ctx, cfg, jar, cfg.Standard.SessionCookieNames, headers, wk.Rand)
+					fetchCookie(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, headers, wk.Rand)
 					outcome.Mu.Lock()
 					outcome.OtherErrs++
 					outcome.Mu.Unlock()
@@ -259,10 +263,13 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	headers := createScrapingHeaders(httpx.PickRandomUserAgent(mainRand))
-	jar, err := cookiejar.New(nil)
+	cookieJar, err := cookiejar.New(nil)
 	assert.NoError(err, "cookie jar must be created to start the crawler")
 
-	err = fetchCookie(ctx, cfg, jar, cfg.Standard.SessionCookieNames, headers, mainRand)
+	// needed as fetchCookie expects a pointer to http.CookieJar
+	var jar http.CookieJar = cookieJar
+
+	err = fetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, headers, mainRand)
 	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
 
 	var core *Core = NewCore(cfg)
