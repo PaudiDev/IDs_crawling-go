@@ -10,9 +10,9 @@ import (
 	"crawler/app/pkg/assert"
 	assetsHandler "crawler/app/pkg/assets-handler"
 	"crawler/app/pkg/crawler"
+	"crawler/app/pkg/crawler/network"
 	safews "crawler/app/pkg/safe-ws"
 	"crawler/app/pkg/shutdown"
-	"crawler/app/pkg/utils/httpx"
 	"crawler/app/pkg/utils/mapx"
 	"crawler/app/pkg/utils/pathx"
 
@@ -44,13 +44,16 @@ func main() {
 	}
 
 	assert.NoError(
-		httpx.LoadProxies(proxies),
+		network.LoadProxies(proxies),
 		"no proxies found in file",
 	)
 	assert.NoError(
-		httpx.LoadUserAgents(httpAssets.UserAgents),
+		network.LoadUserAgents(httpAssets.UserAgents),
 		"no user agents found in file",
 	)
+
+	genProfilesAmount := network.GenerateAndLoadProfiles()
+	slog.Info(fmt.Sprintf("generated %d network profiles", genProfilesAmount))
 
 	dialer := websocket.Dialer{
 		ReadBufferSize:  1024,
