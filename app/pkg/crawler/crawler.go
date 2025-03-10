@@ -19,7 +19,6 @@ import (
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
 	safews "crawler/app/pkg/safe-ws"
 	"crawler/app/pkg/utils/fmtx"
-	"crawler/app/pkg/utils/httpx"
 
 	"github.com/gorilla/websocket"
 )
@@ -73,10 +72,8 @@ func (wk *worker) run(
 	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
 	var jar http.CookieJar = cookieJar
 
-	headers := createBaseHeaders(httpx.PickRandomUserAgent(wk.Rand))
-
-	fetchCookie(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, headers, wk.Rand)
-	go fetchCookieLoop(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, headers, wk.Rand, logChan)
+	fetchCookie(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, wk.Rand)
+	go fetchCookieLoop(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, wk.Rand, logChan)
 
 	var nonExistingOffset int = 500
 	var selectedItemID int
@@ -139,15 +136,11 @@ func (wk *worker) run(
 			selectedItemID = state.CurrentID
 			state.Mu.Unlock()
 
-			for k, v := range createBaseHeaders(httpx.PickRandomUserAgent(wk.Rand)) {
-				headers[k] = v
-			}
-
-			decodedResp, appendedSuffix, err := fetchItem(wk.Ctx, cfg, jar, selectedItemID, headers, wk.Rand)
+			decodedResp, appendedSuffix, err := fetchItem(wk.Ctx, cfg, jar, selectedItemID, wk.Rand)
 			if err != nil {
 				switch {
 				case errors.Is(err, customerrors.ErrorUnauthorized):
-					fetchCookie(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, headers, wk.Rand)
+					fetchCookie(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, wk.Rand)
 					outcome.Mu.Lock()
 					outcome.OtherErrs++
 					outcome.Mu.Unlock()
@@ -262,26 +255,24 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 
 	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	headers := createScrapingHeaders(httpx.PickRandomUserAgent(mainRand))
 	cookieJar, err := cookiejar.New(nil)
 	assert.NoError(err, "cookie jar must be created to start the crawler")
 
 	// needed as fetchCookie expects a pointer to http.CookieJar
 	var jar http.CookieJar = cookieJar
 
-	err = fetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, headers, mainRand)
+	err = fetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, mainRand)
 	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
 
 	var core *Core = NewCore(cfg)
 	var state *State = NewState(cfg)
 	var outcome *Outcome = new(Outcome)
 
-	state.CurrentID, err = fetchHighestID(ctx, cfg, jar, headers, mainRand)
+	state.CurrentID, err = fetchHighestID(ctx, cfg, jar, mainRand)
 	assert.NoError(
 		err, "highest id fetch must be successful to start the crawler",
 		assert.AssertData{
 			"CookieJar": jar,
-			"Headers":   headers,
 		},
 	)
 	state.MostRecentID = state.CurrentID
