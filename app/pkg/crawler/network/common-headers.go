@@ -3,13 +3,13 @@ package network
 // Common HTTP accept language values
 var acceptLanguages = []string{
 	"en-US,en;q=0.9",
-	"en-US,en;q=0.9,es;q=0.8,fr;q=0.7,de;q=0.6",
-	"en-GB,en;q=0.9,fr;q=0.8",
-	"en-GB,en;q=0.8,fr;q=0.6",
-	"fr-CA,fr;q=0.9,en;q=0.8",
-	"de-DE,de;q=0.9,en;q=0.7",
-	"es-ES,es;q=0.9,en;q=0.8",
-	"it-IT,it;q=0.9,en;q=0.8",
+	"en-US,en;q=0.9,en-CA;q=0.8",
+	"en-US,en-CA;q=0.9",
+	"en-US,en-AU;q=0.9",
+	"en-US,es;q=0.8",
+	"en-US,de;q=0.8",
+	"en-CA,en;q=0.9,en-US;q=0.8",
+	"en-AU,en;q=0.9,en-US;q=0.8",
 }
 
 // Common HTTP accept-encoding values
