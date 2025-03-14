@@ -1,4 +1,4 @@
-package crawler
+package workerstypes
 
 import (
 	"sync"
@@ -30,6 +30,9 @@ type Outcome struct {
 	OtherErrs       int
 	ConsecutiveErrs int
 	Successes       int
+	SentToBackup    int
+	Recovered       int
+	Lost            int
 	Mu              sync.Mutex
 }
 
@@ -46,4 +49,34 @@ func NewState(cfg *assetshandler.Config) *State {
 		MostRecentID: 0,
 		DelayNewest:  cfg.Standard.InitialDelay,
 	}
+}
+
+type Handlers struct {
+	SHandler StepHandler
+	CHandler ConcurrencyHandler
+}
+
+type StepHandler struct {
+	UpdateTime int
+	LastDelay  int
+	Retries    int
+	Mu         sync.Mutex
+}
+
+type ConcurrencyHandler struct {
+	UpdateTime int
+	Mu         sync.Mutex
+}
+
+func NewHandlers() *Handlers {
+	return &Handlers{
+		SHandler: StepHandler{
+			LastDelay: 30000,
+		},
+	}
+}
+
+type BackupPacket struct {
+	ItemID       int
+	AppendSuffix bool
 }

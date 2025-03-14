@@ -38,7 +38,7 @@ func GenerateAndLoadProfiles() (profilesAmount int) {
 
 // XXX: The three pickRandom functions are not assert checked (len(pool) > 0)
 // to increase performances. This is unsafe and might be changed in future
-func PickRandomProxy(randGen *rand.Rand) *url.URL {
+func pickRandomProxy(randGen *rand.Rand) *url.URL {
 	return proxiesPool[randGen.Intn(len(proxiesPool))]
 }
 
@@ -46,7 +46,7 @@ func PickRandomUserAgent(randGen *rand.Rand) string {
 	return userAgentsPool[randGen.Intn(len(userAgentsPool))]
 }
 
-func PickRandomProfile(randGen *rand.Rand) *Profile {
+func pickRandomProfile(randGen *rand.Rand) *Profile {
 	return profilesPool[randGen.Intn(len(profilesPool))]
 }
 
