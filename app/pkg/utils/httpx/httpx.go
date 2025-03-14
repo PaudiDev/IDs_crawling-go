@@ -108,6 +108,7 @@ func dialWithUTLS(targetAddr string, proxyHost string, proxyAuth string, utlsPro
 		conn.Close()
 		return nil, fmt.Errorf("failed to open TCP connection between proxy and target: %v", err)
 	}
+	resp.Body.Close()
 
 	// Setup the connection to use the uTLS profile fingerprint
 	//
