@@ -23,7 +23,7 @@ type core struct {
 type http struct {
 	Timeout                int             `yaml:"requests_timeout_seconds"`
 	CookiesRefreshDelay    int             `yaml:"cookies_refresh_delay"`
-	MaxRetriesPerItem      int16           `yaml:"max_retries_per_item"`
+	MaxRetriesPerItem      uint8           `yaml:"max_retries_per_item"`
 	DelayBetweenRetries    uint64          `yaml:"delay_between_retries_milli"`
 	MaxRateLimitsPerSecond int             `yaml:"max_rate_limits_per_second"`
 	RateLimitWait          int             `yaml:"rate_limit_wait_seconds"`

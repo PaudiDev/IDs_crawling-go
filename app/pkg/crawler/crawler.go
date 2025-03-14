@@ -47,7 +47,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	state.MostRecentID = state.CurrentID
 
 	var crawlWorkersAmount int = cfg.Core.MaxConcurrency
-	var maxRetriesPerItem int16 = cfg.Http.MaxRetriesPerItem
+	var maxRetriesPerItem uint8 = cfg.Http.MaxRetriesPerItem
 	var delayBetweenRetries uint64 = cfg.Http.DelayBetweenRetries
 
 	// Let's rename "crawlWorkersAmount" to N, "maxRetriesPerItem" to M and
@@ -100,7 +100,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 			ID:         j,
 			Ctx:        ctx,
 			ItemsChan:  backupChan,
-			MaxRetries: maxRetriesPerItem - 1,
+			MaxRetries: int16(maxRetriesPerItem) - 1,
 			Delay:      delayBetweenRetries,
 			Rand:       rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
