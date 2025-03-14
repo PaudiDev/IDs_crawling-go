@@ -1,4 +1,4 @@
-package crawler
+package workers
 
 import (
 	"fmt"
@@ -6,16 +6,16 @@ import (
 	"time"
 
 	assetshandler "crawler/app/pkg/assets-handler"
-	crawltypes "crawler/app/pkg/crawler/crawl-types"
+	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	"crawler/app/pkg/utils/slicex"
 )
 
 // TODO: All this mutex locking/unlocking might be cleaned up with safe get functions or similar
 
-func logAndResetVarsLoop(
-	core *Core,
-	state *State,
-	outcome *Outcome,
+func LogAndResetVarsLoop(
+	core *wtypes.Core,
+	state *wtypes.State,
+	outcome *wtypes.Outcome,
 	seconds int,
 	logFile *os.File,
 ) {
@@ -62,6 +62,7 @@ func logAndResetVarsLoop(
 						"Requests per second: %d, Success rate: %.2f%%\n"+
 						"Rate limits per second (429): %d, Not found per second (404): %d, "+
 						"Other errors per sec: %d\n"+
+						"Sent to backup: %d, Recovered from backup: %d, Lost from backup: %d\n"+
 						"Current ID: %d, Most recent ID: %d, Time since last published: %d\n"+
 						"Concurrency: %d, Step: %d\n"+
 						"Average Concurrency: %.2f, Average step: %.2f, "+
@@ -69,6 +70,7 @@ func logAndResetVarsLoop(
 						"\n\n",
 					totalRequests, successRate,
 					outcome.RateLimits, outcome.NotFounds, outcome.OtherErrs,
+					outcome.SentToBackup, outcome.Recovered, outcome.Lost,
 					state.CurrentID, state.MostRecentID, state.DelayNewest,
 					core.Concurrency, core.Step,
 					avgConcurrency, avgStep, avgDelay,
@@ -81,6 +83,9 @@ func logAndResetVarsLoop(
 		outcome.NotFounds = 0
 		outcome.OtherErrs = 0
 		outcome.Successes = 0
+		outcome.SentToBackup = 0
+		outcome.Recovered = 0
+		outcome.Lost = 0
 		outcome.Mu.Unlock()
 
 		core.Mu.Lock()
@@ -95,11 +100,11 @@ func logAndResetVarsLoop(
 }
 
 func adjustStep(
-	handler *crawltypes.StepHandler,
+	handler *wtypes.StepHandler,
 	cfg *assetshandler.Config,
-	core *Core,
-	state *State,
-	outcome *Outcome,
+	core *wtypes.Core,
+	state *wtypes.State,
+	outcome *wtypes.Outcome,
 ) int {
 	now := (int)(time.Now().UnixMilli())
 
@@ -210,11 +215,11 @@ func adjustStep(
 }
 
 func adjustConcurrency(
-	handler *crawltypes.ConcurrencyHandler,
+	handler *wtypes.ConcurrencyHandler,
 	cfg *assetshandler.Config,
-	core *Core,
-	state *State,
-	outcome *Outcome,
+	core *wtypes.Core,
+	state *wtypes.State,
+	outcome *wtypes.Outcome,
 ) int {
 	now := (int)(time.Now().UnixMilli())
 

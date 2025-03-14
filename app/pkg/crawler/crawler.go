@@ -2,10 +2,9 @@ package crawler
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/http/cookiejar"
@@ -14,241 +13,11 @@ import (
 
 	"crawler/app/pkg/assert"
 	assetshandler "crawler/app/pkg/assets-handler"
-	crawltypes "crawler/app/pkg/crawler/crawl-types"
-	ctypes "crawler/app/pkg/custom-types"
-	customerrors "crawler/app/pkg/custom-types/custom-errors"
+	"crawler/app/pkg/crawler/network"
+	"crawler/app/pkg/crawler/workers"
+	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	safews "crawler/app/pkg/safe-ws"
-	"crawler/app/pkg/utils/fmtx"
-
-	"github.com/gorilla/websocket"
 )
-
-type worker struct {
-	ID    int
-	Ctx   context.Context
-	Rand  *rand.Rand
-	Fatal error
-}
-
-func (wk *worker) run(
-	cfg *assetshandler.Config,
-	core *Core,
-	state *State,
-	outcome *Outcome,
-	handlers *crawltypes.Handlers,
-	conns []*safews.SafeConn,
-) {
-	logChan := make(chan ctypes.LogData, 1000)
-	defer close(logChan)
-	go wk.Log(logChan)
-
-	defer func() {
-		if r := recover(); r != nil {
-			if err, ok := r.(error); ok {
-				wk.Fatal = err
-			} else {
-				wk.Fatal = fmt.Errorf("recover panic: %v", r)
-			}
-			panic(r)
-		} else {
-			assert.NotNil(
-				wk.Fatal,
-				"at this point worker must have a done ctx error. an unexpected error occurred",
-				assert.AssertData{"WorkerID": wk.ID},
-			)
-			logChan <- ctypes.LogData{
-				Level: slog.LevelError,
-				Msg:   "Worker finished due to context done",
-			}
-		}
-	}()
-
-	var currentConnIdx int = 0
-	var connsAmount int = len(conns)
-
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, fmtx.Worker("cookie jar must be created to start the worker", wk.ID))
-
-	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	fetchCookie(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, wk.Rand)
-	go fetchCookieLoop(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, wk.Rand, logChan)
-
-	var nonExistingOffset int = 500
-	var selectedItemID int
-	for {
-		select {
-		case <-wk.Ctx.Done():
-			wk.Fatal = fmt.Errorf("worker %v ctx done", wk.ID)
-			return
-		default:
-			if func() int {
-				outcome.Mu.Lock()
-				defer outcome.Mu.Unlock()
-				return outcome.RateLimits
-			}() > cfg.Http.MaxRateLimitsPerSecond {
-				time.Sleep((time.Duration)(cfg.Http.RateLimitWait) * time.Second)
-			}
-
-			state.Mu.Lock()
-			core.Mu.Lock()
-			onNonExistingItem := state.CurrentID > state.MostRecentID+nonExistingOffset
-			onOldItems := core.Step < 0 && state.CurrentID < state.MostRecentID
-			core.Mu.Unlock()
-			state.Mu.Unlock()
-
-			var tmp_c int
-			if onNonExistingItem {
-				tmp_c = 1
-			} else {
-				tmp_c = adjustConcurrency(&handlers.CHandler, cfg, core, state, outcome)
-			}
-			core.Mu.Lock()
-			core.Concurrency = tmp_c
-			core.Concurrencies = append(core.Concurrencies, core.Concurrency)
-			core.Mu.Unlock()
-
-			if wk.ID > func() int {
-				core.Mu.Lock()
-				defer core.Mu.Unlock()
-				return core.Concurrency
-			}() {
-				time.Sleep(10 * time.Millisecond)
-				continue
-			}
-
-			var tmp_s int
-			if onNonExistingItem || onOldItems {
-				tmp_s = 1
-				state.Mu.Lock()
-				state.CurrentID = state.MostRecentID
-				state.Mu.Unlock()
-			} else {
-				tmp_s = adjustStep(&handlers.SHandler, cfg, core, state, outcome)
-			}
-			core.Mu.Lock()
-			core.Step = tmp_s
-			core.Steps = append(core.Steps, core.Step)
-			core.Mu.Unlock()
-			state.Mu.Lock()
-			state.CurrentID += tmp_s
-			selectedItemID = state.CurrentID
-			state.Mu.Unlock()
-
-			decodedResp, appendedSuffix, err := fetchItem(wk.Ctx, cfg, jar, selectedItemID, wk.Rand)
-			if err != nil {
-				switch {
-				case errors.Is(err, customerrors.ErrorUnauthorized):
-					fetchCookie(wk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, wk.Rand)
-					outcome.Mu.Lock()
-					outcome.OtherErrs++
-					outcome.Mu.Unlock()
-				case errors.Is(err, customerrors.ErrorRateLimit):
-					outcome.Mu.Lock()
-					outcome.RateLimits++
-					outcome.Mu.Unlock()
-				case errors.Is(err, customerrors.ErrorNotFound):
-					outcome.Mu.Lock()
-					outcome.NotFounds++
-					outcome.ConsecutiveErrs++
-					outcome.Mu.Unlock()
-				default:
-					outcome.Mu.Lock()
-					outcome.OtherErrs++
-					outcome.Mu.Unlock()
-				}
-				logChan <- ctypes.LogData{
-					Level: slog.LevelError,
-					Msg: fmt.Sprintf("got an error fetching item (ID %v). "+
-						"%s ----- %v ----- %v", selectedItemID, err.Error(), tmp_s, tmp_c),
-				}
-				continue
-			}
-
-			outcome.Mu.Lock()
-			outcome.Successes++
-			outcome.ConsecutiveErrs = 0
-			outcome.Mu.Unlock()
-
-			if selectedItemID > func() int {
-				state.Mu.Lock()
-				defer state.Mu.Unlock()
-				return state.MostRecentID
-			}() {
-				go func() {
-					jsonResponse, err := json.Marshal(decodedResp)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error marshalling item response to json, "+
-									"impossible sending to websocket (ID %v): %v",
-								selectedItemID, err,
-							),
-						}
-						return
-					}
-
-					err = conns[currentConnIdx].WriteMessage(websocket.TextMessage, jsonResponse)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error sending item to websocket (ID %v): %v",
-								selectedItemID, err,
-							),
-						}
-					}
-					currentConnIdx = (currentConnIdx + 1) % connsAmount
-				}()
-
-				state.Mu.Lock()
-				state.MostRecentID = selectedItemID
-				state.Mu.Unlock()
-
-				var tsKey string
-				if appendedSuffix {
-					tsKey = cfg.Standard.ItemResponse.TimestampSuffix
-				} else {
-					tsKey = cfg.Standard.ItemResponse.Timestamp
-				}
-
-				item := decodedResp[cfg.Standard.ItemResponse.Item].(map[string]interface{})
-				rawTs := item[tsKey].(string)
-				parsedTs, err := time.Parse(cfg.Standard.TimestampFormat, rawTs)
-				assert.NoError(err, "timestamp must be parsed successfully")
-				tmp_d := (int)(time.Since(parsedTs).Milliseconds())
-
-				state.Mu.Lock()
-				state.DelayNewest = tmp_d
-				state.Delays = append(state.Delays, tmp_d)
-				state.Mu.Unlock()
-
-				// XXX: In production this can be removed for increased performance
-				logChan <- ctypes.LogData{
-					Level: slog.LevelDebug,
-					Msg: fmt.Sprintf("%v ----- %v ----- %v ----- %v",
-						selectedItemID, tmp_d, tmp_s, tmp_c),
-				}
-			}
-		}
-	}
-}
-
-func (wk *worker) Log(logChan <-chan ctypes.LogData) {
-	for {
-		select {
-		case <-wk.Ctx.Done():
-			return
-		case data, ok := <-logChan:
-			if !ok {
-				return
-			}
-			slog.Log(wk.Ctx, data.Level, fmtx.Worker(data.Msg, wk.ID))
-		}
-	}
-}
 
 func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeConn, statusLogFile *os.File) {
 	slog.Info("Crawler Started...")
@@ -261,14 +30,14 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	// needed as fetchCookie expects a pointer to http.CookieJar
 	var jar http.CookieJar = cookieJar
 
-	err = fetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, mainRand)
+	err = network.FetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, mainRand)
 	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
 
-	var core *Core = NewCore(cfg)
-	var state *State = NewState(cfg)
-	var outcome *Outcome = new(Outcome)
+	var core *wtypes.Core = wtypes.NewCore(cfg)
+	var state *wtypes.State = wtypes.NewState(cfg)
+	var outcome *wtypes.Outcome = new(wtypes.Outcome)
 
-	state.CurrentID, err = fetchHighestID(ctx, cfg, jar, mainRand)
+	state.CurrentID, err = network.FetchHighestID(ctx, cfg, jar, mainRand)
 	assert.NoError(
 		err, "highest id fetch must be successful to start the crawler",
 		assert.AssertData{
@@ -277,19 +46,70 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	)
 	state.MostRecentID = state.CurrentID
 
-	var handlers *crawltypes.Handlers = crawltypes.NewHandlers()
+	var crawlWorkersAmount int = cfg.Core.MaxConcurrency
+	var maxRetriesPerItem uint8 = cfg.Http.MaxRetriesPerItem
+	var delayBetweenRetries uint64 = cfg.Http.DelayBetweenRetries
 
-	for i := 0; i < cfg.Core.MaxConcurrency; i++ {
-		wk := &worker{
-			ID: i + 1, Ctx: ctx,
-			Rand: rand.New(rand.NewSource(time.Now().UnixNano())),
+	// Let's rename "crawlWorkersAmount" to N, "maxRetriesPerItem" to M and
+	// "delayBetweenRetries" to D.
+	//
+	// Hypothesize all requests fail and each one takes the same amount of T ms.
+	// In this situation, each crawl worker will produce a backup packet every T ms,
+	// while each backup worker will take M*(T+D) ms to consume it.
+	//
+	// Being X the amount of backup workers needed to exactly match the
+	// production and consumption rates, X will need to satisfy the following equation:
+	// X/[M*(T+D)] = N/T ==> X = N*M*(T+D)/T = N*M*(1+D/T).
+	// In the hypothesized scenario, with this amount of backup workers,
+	// a backup channel size of N*M*(1+D/T) is never exceeded.
+	//
+	// Since a GET request ideally takes less than 1 second to complete, assuming
+	// T = 1000 ms is a good approximation.
+	// In this case, the amount of backup workers needed is N*M*(1+D/1000).
+	//
+	// In practice, each request takes a different amount of time to complete
+	// and little delays are introduced all the time.
+	// To take care of this, the channel size is doubled.
+	//
+	// The amount of backup workers could also be doubled instead but, since
+	// the hypothesis of all requests failing is very pessimistic, it would only
+	// waste double the resources without any actual benefit.
+	var backupWorkersAmount int
+	if maxRetriesPerItem < 2 {
+		backupWorkersAmount = crawlWorkersAmount
+	} else {
+		backupWorkersAmount = crawlWorkersAmount * (int)(maxRetriesPerItem)
+	}
+	backupWorkersAmount *= 1 + int(math.Ceil((float64)(delayBetweenRetries)/1000))
+	var backupChan chan wtypes.BackupPacket = make(chan wtypes.BackupPacket, backupWorkersAmount*2)
+	var handlers *wtypes.Handlers = wtypes.NewHandlers()
+
+	for i := 1; i <= crawlWorkersAmount; i++ {
+		cWk := &workers.CrawlWorker{
+			ID:         i,
+			Ctx:        ctx,
+			BackupChan: backupChan,
+			Rand:       rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go wk.run(cfg, core, state, outcome, handlers, conns)
+		go cWk.Run(cfg, core, state, outcome, handlers, conns)
 	}
 
-	slog.Info(fmt.Sprintf("%v workers Started...", cfg.Core.MaxConcurrency))
+	for j := 1; j <= backupWorkersAmount; j++ {
+		bWk := &workers.BackupWorker{
+			ID:         j,
+			Ctx:        ctx,
+			ItemsChan:  backupChan,
+			MaxRetries: int16(maxRetriesPerItem) - 1,
+			Delay:      delayBetweenRetries,
+			Rand:       rand.New(rand.NewSource(time.Now().UnixNano())),
+		}
+
+		go bWk.Run(cfg, core, state, outcome, handlers, conns)
+	}
+
+	slog.Info(fmt.Sprintf("%d crawl workers and %d backup workers Started...", crawlWorkersAmount, backupWorkersAmount))
 
 	logSeconds := 1
-	logAndResetVarsLoop(core, state, outcome, logSeconds, statusLogFile)
+	workers.LogAndResetVarsLoop(core, state, outcome, logSeconds, statusLogFile)
 }

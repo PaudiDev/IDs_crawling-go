@@ -1,4 +1,4 @@
-package crawler
+package network
 
 import (
 	"context"
@@ -13,13 +13,12 @@ import (
 	"time"
 
 	assetshandler "crawler/app/pkg/assets-handler"
-	"crawler/app/pkg/crawler/network"
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
 	"crawler/app/pkg/utils/httpx"
 )
 
-func fetchCookie(
+func FetchCookie(
 	ctx context.Context,
 	cfg *assetshandler.Config,
 	jar *http.CookieJar,
@@ -63,14 +62,14 @@ func fetchCookie(
 	}
 	tmpJar.SetCookies(parsedUrl, tmpCookies)
 
-	reqProfile := network.PickRandomProfile(randGen)
+	reqProfile := pickRandomProfile(randGen)
 
 	req, err := httpx.BuildRequest(ctx, "GET", cfg.Standard.Urls.BaseUrl, nil, reqProfile.GetFullHeaders())
 	if err != nil {
 		return err
 	}
 
-	proxyUrl := network.PickRandomProxy(randGen)
+	proxyUrl := pickRandomProxy(randGen)
 
 	response, err := httpx.MakeRequestWithProxyAndFingerprint(req, tmpJar, proxyUrl, reqProfile.TLSClientHelloID, cfg.Http.Timeout)
 	if err != nil {
@@ -115,7 +114,7 @@ func fetchCookie(
 	return nil
 }
 
-func fetchCookieLoop(
+func FetchCookieLoop(
 	ctx context.Context,
 	cfg *assetshandler.Config,
 	jar *http.CookieJar,
@@ -130,7 +129,7 @@ func fetchCookieLoop(
 		case <-ctx.Done():
 			return
 		default:
-			err := fetchCookie(ctx, cfg, jar, targetCookieNames, randGen)
+			err := FetchCookie(ctx, cfg, jar, targetCookieNames, randGen)
 			if err != nil {
 				logChan <- ctypes.LogData{
 					Level: slog.LevelError,
@@ -141,46 +140,29 @@ func fetchCookieLoop(
 	}
 }
 
-func fetchHighestID(
+func FetchHighestID(
 	ctx context.Context,
 	cfg *assetshandler.Config,
 	jar http.CookieJar,
 	randGen *rand.Rand,
 ) (int, error) {
-	reqProfile := network.PickRandomProfile(randGen)
-
-	req, err := httpx.BuildRequest(ctx, "GET", cfg.Standard.Urls.ItemsUrl, nil, reqProfile.GetFullHeaders())
+	decodedResp, err := FetchDirectJSONUrl(ctx, cfg.Standard.Urls.ItemsUrl, jar, cfg.Http.Timeout, randGen)
 	if err != nil {
 		return 0, err
 	}
 
-	proxyUrl := network.PickRandomProxy(randGen)
-
-	response, err := httpx.MakeRequestWithProxyAndFingerprint(req, jar, proxyUrl, reqProfile.TLSClientHelloID, cfg.Http.Timeout)
-	if err != nil {
-		return 0, err
+	items, ok := decodedResp[cfg.Standard.ItemsResponse.Items].([]interface{})
+	if !ok {
+		return 0, fmt.Errorf("invalid items list structure, should be []interface{}")
 	}
-
-	body, cleanup, err := httpx.DecompressResponseBody(response)
-	if err != nil {
-		return 0, err
-	}
-	defer cleanup()
-
-	if response.StatusCode != http.StatusOK {
-		return 0, customerrors.InferHttpError(response.StatusCode)
-	}
-
-	var decodedResp map[string]interface{}
-	err = json.NewDecoder(body).Decode(&decodedResp)
-	if err != nil {
-		return 0, err
-	}
-
-	items := decodedResp[cfg.Standard.ItemsResponse.Items].([]interface{})
 	var highestID float64 = 0
 	for _, item := range items {
-		if itemID := item.(map[string]interface{})[cfg.Standard.ItemsResponse.ID].(float64); itemID > highestID {
+		itemID, ok := item.(map[string]interface{})[cfg.Standard.ItemsResponse.ID].(float64)
+		if !ok {
+			return 0, fmt.Errorf("invalid item structure, should be map[string]interface{}")
+		}
+
+		if itemID > highestID {
 			highestID = itemID
 		}
 	}
@@ -188,7 +170,7 @@ func fetchHighestID(
 	return int(highestID), nil
 }
 
-func fetchItem(
+func FetchItem(
 	ctx context.Context,
 	cfg *assetshandler.Config,
 	jar http.CookieJar,
@@ -209,35 +191,49 @@ func fetchItem(
 		appendedSuffix = false
 	}
 
-	reqProfile := network.PickRandomProfile(randGen)
-
-	req, err := httpx.BuildRequest(ctx, "GET", url, nil, reqProfile.GetFullHeaders())
-	if err != nil {
-		return nil, appendedSuffix, err
-	}
-
-	proxyUrl := network.PickRandomProxy(randGen)
-
-	response, err := httpx.MakeRequestWithProxyAndFingerprint(req, jar, proxyUrl, reqProfile.TLSClientHelloID, cfg.Http.Timeout)
-	if err != nil {
-		return nil, appendedSuffix, err
-	}
-
-	body, cleanup, err := httpx.DecompressResponseBody(response)
-	if err != nil {
-		return nil, appendedSuffix, err
-	}
-	defer cleanup()
-
-	if response.StatusCode != http.StatusOK {
-		return nil, appendedSuffix, customerrors.InferHttpError(response.StatusCode)
-	}
-
-	var decodedResp map[string]interface{}
-	err = json.NewDecoder(body).Decode(&decodedResp)
+	decodedResp, err := FetchDirectJSONUrl(ctx, url, jar, cfg.Http.Timeout, randGen)
 	if err != nil {
 		return nil, appendedSuffix, err
 	}
 
 	return decodedResp, appendedSuffix, nil
+}
+
+func FetchDirectJSONUrl(
+	ctx context.Context,
+	url string,
+	jar http.CookieJar,
+	timeout int,
+	randGen *rand.Rand,
+) (decodedResp map[string]interface{}, err error) {
+	reqProfile := pickRandomProfile(randGen)
+
+	req, err := httpx.BuildRequest(ctx, "GET", url, nil, reqProfile.GetFullHeaders())
+	if err != nil {
+		return nil, err
+	}
+
+	proxyUrl := pickRandomProxy(randGen)
+
+	response, err := httpx.MakeRequestWithProxyAndFingerprint(req, jar, proxyUrl, reqProfile.TLSClientHelloID, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, customerrors.InferHttpError(response.StatusCode)
+	}
+
+	body, cleanup, err := httpx.DecompressResponseBody(response)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
+	err = json.NewDecoder(body).Decode(&decodedResp)
+	if err != nil {
+		return nil, err
+	}
+
+	return decodedResp, nil
 }
