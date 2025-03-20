@@ -17,44 +17,43 @@ import (
 	"crawler/app/pkg/crawler/workers"
 	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	safews "crawler/app/pkg/safe-ws"
+	"crawler/app/pkg/thresholds"
 )
 
 func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeConn, statusLogFile *os.File) {
 	slog.Info("Crawler Started...")
 
-	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, "cookie jar must be created to start the crawler")
-
-	// needed as fetchCookie expects a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	err = network.FetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, mainRand)
-	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
+	//
+	// Setup workers related variables
+	//
 
 	var core *wtypes.Core = wtypes.NewCore(cfg)
 	var state *wtypes.State = wtypes.NewState(cfg)
 	var outcome *wtypes.Outcome = new(wtypes.Outcome)
 
-	state.CurrentID, err = network.FetchHighestID(ctx, cfg, jar, mainRand)
-	assert.NoError(
-		err, "highest id fetch must be successful to start the crawler",
-		assert.AssertData{
-			"CookieJar": jar,
-		},
-	)
-	state.MostRecentID = state.CurrentID
-
-	var crawlWorkersAmount int = cfg.Core.MaxConcurrency
 	var maxRetriesPerItem uint8 = cfg.Http.MaxRetriesPerItem
 	var delayBetweenRetries uint64 = cfg.Http.DelayBetweenRetries
 
-	// Let's rename "crawlWorkersAmount" to N, "maxRetriesPerItem" to M and
+	// (2^16-1)/500 ~= 131 should be enough. (the thresholds variables are uint16).
+	// if this amount of thresholds is exceeded the system will slow down.
+	//
+	// TODO: maybe in future handle this by dynamically spawning workers
+	// or putting them in a pool, this ideal limit is not the best for every purpose.
+	idealMaxThresholdsAmount := math.MaxUint16 / 500
+	thresholdsWkIDsChan := make(chan int, idealMaxThresholdsAmount)
+	thresholdsWkResultsChan := make(chan *wtypes.ThresholdsWorkerResult, idealMaxThresholdsAmount)
+
+	var subWorkersAmount int = 25 * idealMaxThresholdsAmount / 2 // TODO: replace 25 with cfg.Thresholds.Offset
+
+	// same reasoning as the backup workers amount.
+	subordinateWkIDsChannel := make(chan int, subWorkersAmount*3)
+	fmt.Println("Initial size:", subWorkersAmount*3)
+
+	// Let's rename "subWorkersAmount" to N, "maxRetriesPerItem" to M and
 	// "delayBetweenRetries" to D.
 	//
 	// Hypothesize all requests fail and each one takes the same amount of T ms.
-	// In this situation, each crawl worker will produce a backup packet every T ms,
+	// In this situation, each subordinate worker will produce a backup packet every T ms,
 	// while each backup worker will take M*(T+D) ms to consume it.
 	//
 	// Being X the amount of backup workers needed to exactly match the
@@ -69,47 +68,174 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	//
 	// In practice, each request takes a different amount of time to complete
 	// and little delays are introduced all the time.
-	// To take care of this, the channel size is doubled.
+	// To take care of this, the channel size is tripled.
 	//
-	// The amount of backup workers could also be doubled instead but, since
+	// The amount of backup workers could also be tripled instead but, since
 	// the hypothesis of all requests failing is very pessimistic, it would only
-	// waste double the resources without any actual benefit.
+	// waste many resources without any actual benefit.
 	var backupWorkersAmount int
 	if maxRetriesPerItem < 2 {
-		backupWorkersAmount = crawlWorkersAmount
+		backupWorkersAmount = subWorkersAmount
 	} else {
-		backupWorkersAmount = crawlWorkersAmount * (int)(maxRetriesPerItem)
+		backupWorkersAmount = subWorkersAmount * (int)(maxRetriesPerItem)
 	}
 	backupWorkersAmount *= 1 + int(math.Ceil((float64)(delayBetweenRetries)/1000))
-	var backupChan chan wtypes.BackupPacket = make(chan wtypes.BackupPacket, backupWorkersAmount*2)
+	backupChan := make(chan wtypes.BackupPacket, backupWorkersAmount*3)
+
+	// this channel is used to send results by subordinate Wks, backup Wks and
+	// the workers manager.
+	// since the backup workers are the ones in majority, the channel size is
+	// set to their amount.
+	wsChan := make(chan *wtypes.WsContentElement, backupWorkersAmount)
+
 	var handlers *wtypes.Handlers = wtypes.NewHandlers()
 
-	for i := 1; i <= crawlWorkersAmount; i++ {
-		cWk := &workers.CrawlWorker{
-			ID:         i,
-			Ctx:        ctx,
-			BackupChan: backupChan,
-			Rand:       rand.New(rand.NewSource(time.Now().UnixNano())),
+	//
+	// Start the workers
+	//
+
+	for i := 1; i <= subWorkersAmount; i++ {
+		cWk := &workers.SubordinateWorker{
+			ID:           i,
+			Ctx:          ctx,
+			ItemsIDsChan: subordinateWkIDsChannel,
+			ResultsChan:  wsChan,
+			BackupChan:   backupChan,
+			Rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go cWk.Run(cfg, core, state, outcome, handlers, conns)
+		go cWk.Run(cfg, core, state, outcome, handlers)
 	}
 
 	for j := 1; j <= backupWorkersAmount; j++ {
 		bWk := &workers.BackupWorker{
-			ID:         j,
-			Ctx:        ctx,
-			ItemsChan:  backupChan,
-			MaxRetries: int16(maxRetriesPerItem) - 1,
-			Delay:      delayBetweenRetries,
-			Rand:       rand.New(rand.NewSource(time.Now().UnixNano())),
+			ID:           j,
+			Ctx:          ctx,
+			ItemsIDsChan: backupChan,
+			ResultsChan:  wsChan,
+			MaxRetries:   int16(maxRetriesPerItem) - 1,
+			Delay:        delayBetweenRetries,
+			Rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go bWk.Run(cfg, core, state, outcome, handlers, conns)
+		go bWk.Run(cfg, core, state, outcome, handlers)
 	}
 
-	slog.Info(fmt.Sprintf("%d crawl workers and %d backup workers Started...", crawlWorkersAmount, backupWorkersAmount))
+	for k := 1; k <= idealMaxThresholdsAmount; k++ {
+		tWk := &workers.ThresholdsWorker{
+			ID:           k,
+			Ctx:          ctx,
+			ItemsIDsChan: thresholdsWkIDsChan,
+			ResultsChan:  thresholdsWkResultsChan,
+			Rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
+		}
+
+		go tWk.Run(cfg, core, state, outcome, handlers)
+	}
+
+	slog.Info(
+		fmt.Sprintf(
+			"%d thresholds workers, %d subordinate workers and %d backup workers Started...",
+			idealMaxThresholdsAmount, subWorkersAmount, backupWorkersAmount,
+		),
+	)
+
+	//
+	// Start the websocket worker
+	//
+
+	wsWk := &workers.WebsocketWorker{
+		ID:           1,
+		Ctx:          ctx,
+		ContentsChan: wsChan,
+		Conns:        conns,
+	}
+
+	go wsWk.Run()
+
+	//
+	// Setup workers manager related variables
+	//
+
+	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	cookieJar, err := cookiejar.New(nil)
+	assert.NoError(err, "cookie jar must be created to start the crawler")
+
+	// needed as fetchCookie expects a pointer to http.CookieJar
+	var jar http.CookieJar = cookieJar
+
+	err = network.FetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, mainRand)
+	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
+
+	state.CurrentID, err = network.FetchHighestID(ctx, cfg, jar, mainRand)
+	assert.NoError(
+		err, "highest id fetch must be successful to start the crawler",
+		assert.AssertData{
+			"CookieJar": jar,
+		},
+	)
+	state.MostRecentID = state.CurrentID
+
+	thresholdsControllerCfg := &thresholds.ThresholdsControllerConfig{
+		InitialThresholdsAmount:      4, // cfg.Thresholds.InitialAmount,
+		ThresholdsAdjustmentPolicies: makeThresholdsAdjustmentPolicies(),
+	}
+	thresholdsController, err := thresholds.NewThresholdsController(thresholdsControllerCfg)
+	assert.NoError(err, "thresholds controller must be created successfully")
+
+	//
+	// Start the status handler
+	//
 
 	logSeconds := 1
-	workers.LogAndResetVarsLoop(core, state, outcome, logSeconds, statusLogFile)
+	go workers.LogAndResetVarsLoop(core, state, outcome, logSeconds, statusLogFile)
+
+	//
+	// Start the workers manager
+	//
+
+	var wksManager workersManager = workersManager{
+		thresholdsController: thresholdsController,
+		offset:               25, // cfg.Thresholds.Offset,
+	}
+	wksManager.run(
+		thresholdsWkIDsChan,
+		thresholdsWkResultsChan,
+		subordinateWkIDsChannel,
+		wsChan,
+		state.CurrentID,
+	)
+}
+
+func makeThresholdsAdjustmentPolicies() []thresholds.ThresholdsAdjustmentPolicy {
+	return []thresholds.ThresholdsAdjustmentPolicy{
+		{
+			Percentage: 0.9,
+			ComputeIncrement: func(currentTimestamp, newTimestamp uint32, thresholdsAmount uint16) int32 {
+				if newTimestamp >= currentTimestamp+500 {
+					return 2
+				}
+				return 1
+			},
+		},
+		{
+			Percentage: 0.5,
+			ComputeIncrement: func(currentTimestamp, newTimestamp uint32, thresholdsAmount uint16) int32 {
+				return 0
+			},
+		},
+		{
+			Percentage: 0.3,
+			ComputeIncrement: func(currentTimestamp, newTimestamp uint32, thresholdsAmount uint16) int32 {
+				return -1
+			},
+		},
+		{
+			Percentage: 0,
+			ComputeIncrement: func(currentTimestamp, newTimestamp uint32, thresholdsAmount uint16) int32 {
+				return int32(-0.25 * float32(thresholdsAmount))
+			},
+		},
+	}
 }

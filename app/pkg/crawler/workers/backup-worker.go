@@ -2,7 +2,6 @@ package workers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,20 +17,20 @@ import (
 	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
-	safews "crawler/app/pkg/safe-ws"
-
-	"github.com/gorilla/websocket"
 )
 
 type BackupWorker struct {
 	ID  int
 	Ctx context.Context
 
-	// ItemsChan is filled overtime (by the main worker(s)) with the BackupPackets
+	// ItemsIDsChan is filled overtime (by the main worker(s)) with the BackupPackets
 	// of the items (identified with their IDs) that need to be fetched by the backup worker.
 	// The packet also specifies if the url suffix has been appeneded in the original
 	// request.
-	ItemsChan <-chan (wtypes.BackupPacket)
+	ItemsIDsChan <-chan wtypes.BackupPacket
+
+	// ResultsChan is used to send successful fetches results to something that processes them.
+	ResultsChan chan<- *wtypes.WsContentElement
 
 	// MaxRetries specifies the maximum amount of retries the backup worker can do
 	// on each item before skipping it and labeling it as lost / non existing.
@@ -51,7 +50,6 @@ func (bWk *BackupWorker) Run(
 	state *wtypes.State,
 	outcome *wtypes.Outcome,
 	handlers *wtypes.Handlers,
-	conns []*safews.SafeConn,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -78,30 +76,34 @@ func (bWk *BackupWorker) Run(
 		}
 	}()
 
-	var currentConnIdx int = 0
-	var connsAmount int = len(conns)
-
 	cookieJar, err := cookiejar.New(nil)
 	assert.NoError(err, bWk.logFormat("cookie jar must be created to start the worker"))
 
 	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
 	var jar http.CookieJar = cookieJar
 
-	network.FetchCookie(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand)
-	go network.FetchCookieLoop(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand, logChan)
-
+	isFirstItem := true
 	for {
 		select {
 		case <-bWk.Ctx.Done():
 			bWk.Fatal = fmt.Errorf("worker %v ctx done", bWk.ID)
 			return
-		case itemPacket := <-bWk.ItemsChan:
+		case itemPacket := <-bWk.ItemsIDsChan:
 			if func() int {
 				outcome.Mu.Lock()
 				defer outcome.Mu.Unlock()
 				return outcome.RateLimits
 			}() > cfg.Http.MaxRateLimitsPerSecond {
 				time.Sleep((time.Duration)(cfg.Http.RateLimitWait) * time.Second)
+			}
+
+			// only make the fetch cookie request and start the loop goroutine
+			// once the first item is received to avoid a big amount of requests
+			// sent at the same time in case many workers are started at the same time
+			if isFirstItem {
+				network.FetchCookie(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand)
+				go network.FetchCookieLoop(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand, logChan)
+				isFirstItem = false
 			}
 
 			var itemID int = itemPacket.ItemID
@@ -157,36 +159,14 @@ func (bWk *BackupWorker) Run(
 					continue
 				}
 
+				bWk.ResultsChan <- &wtypes.WsContentElement{
+					Content:   decodedResp,
+					ContentID: itemID,
+				}
+
 				outcome.Mu.Lock()
 				outcome.Recovered++
 				outcome.Mu.Unlock()
-
-				go func() {
-					jsonResponse, err := json.Marshal(decodedResp)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error marshalling item response to json, "+
-									"impossible sending to websocket (ID %v): %v",
-								itemID, err,
-							),
-						}
-						return
-					}
-
-					err = conns[currentConnIdx].WriteMessage(websocket.TextMessage, jsonResponse)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error sending item to websocket (ID %v): %v",
-								itemID, err,
-							),
-						}
-					}
-					currentConnIdx = (currentConnIdx + 1) % connsAmount
-				}()
 
 				var tsKey string
 				if appendedSuffix {
@@ -240,5 +220,5 @@ func (bWk *BackupWorker) log(logChan <-chan ctypes.LogData) {
 }
 
 func (bWk *BackupWorker) logFormat(text string) string {
-	return fmt.Sprintf("(BackupWorker B%v): %s", bWk.ID, text)
+	return fmt.Sprintf("(BackupWorker B%d): %s", bWk.ID, text)
 }
