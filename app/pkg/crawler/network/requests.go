@@ -123,6 +123,8 @@ func FetchCookieLoop(
 	logChan chan<- ctypes.LogData,
 ) {
 	for {
+		// time.Sleep chose over time.Ticker to have this exact amount of time
+		// between the fetch result and the next fetch call, not between each call.
 		time.Sleep(time.Duration(cfg.Http.CookiesRefreshDelay) * time.Second)
 
 		select {
@@ -229,6 +231,7 @@ func FetchDirectJSONUrl(
 		return nil, err
 	}
 	defer cleanup()
+	defer response.Body.Close()
 
 	err = json.NewDecoder(body).Decode(&decodedResp)
 	if err != nil {

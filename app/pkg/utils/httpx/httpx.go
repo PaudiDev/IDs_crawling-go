@@ -104,11 +104,16 @@ func dialWithUTLS(targetAddr string, proxyHost string, proxyAuth string, utlsPro
 	fmt.Fprint(conn, "\r\n") // CRLF
 
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("failed to open TCP connection between proxy and target: %v", err)
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		conn.Close()
+		return nil, fmt.Errorf("failed to open TCP connection between proxy and target due to non-200 status code: %d", resp.StatusCode)
+	}
 
 	// Setup the connection to use the uTLS profile fingerprint
 	//

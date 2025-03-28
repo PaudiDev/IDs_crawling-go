@@ -65,6 +65,8 @@ func (wsWk *WebsocketWorker) Run() {
 	for {
 		contentEl := <-wsWk.ContentsChan
 
+		currentConnIdx = (currentConnIdx + 1) % connsAmount
+
 		go func() {
 			jsonResponse, err := json.Marshal(contentEl.Content)
 			if err != nil {
@@ -89,7 +91,6 @@ func (wsWk *WebsocketWorker) Run() {
 					),
 				}
 			}
-			currentConnIdx = (currentConnIdx + 1) % connsAmount
 		}()
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"slices"
-	"time"
 
 	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	"crawler/app/pkg/thresholds"
@@ -16,6 +15,8 @@ type workersManager struct {
 
 	// The offset to keep between each ID threshold.
 	offset int
+
+	rand *rand.Rand
 }
 
 func (wkM *workersManager) run(
@@ -32,7 +33,8 @@ func (wkM *workersManager) run(
 		lastSuccID := highestThresholdID
 		thresholdsAmount := wkM.thresholdsController.GetThresholdsAmount()
 		results := make(map[int]*wtypes.ThresholdsWorkerResult, thresholdsAmount)
-		wkM.offset += rand.New(rand.NewSource(time.Now().UnixNano())).Intn(3) - 1
+		wkM.offset += wkM.rand.Intn(3) - 1
+		// TODO: remove this newsource from here, no sense
 
 		for i := uint16(0); i < thresholdsAmount; i++ {
 			highestThresholdID += wkM.offset
@@ -93,6 +95,7 @@ func (wkM *workersManager) run(
 				lastSuccID = interruptID
 			}
 		}
+		fmt.Println("current wsChan size:", len(successfulItemsChan))
 		fmt.Println("current subWKChan size:", len(subordinateWkChan))
 		fmt.Println("hit threshold level:", thresholdsAmount)
 		fmt.Println("thresholds amount:", wkM.thresholdsController.GetThresholdsAmount())

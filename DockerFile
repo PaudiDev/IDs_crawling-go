@@ -7,7 +7,7 @@ RUN go mod download && go mod verify
 
 COPY app/pkg ./app/pkg
 COPY app/cmd ./app/cmd
-
+EXPOSE 6060
 RUN go build -v -o /run-app ./app/cmd/crawler/main.go
 
 FROM ubuntu:22.04

@@ -70,6 +70,7 @@ type internalBrowserData struct {
 // multiple equal profiles will be generated, but the extremely high amount of
 // generated profiles for each ID will ensure that the distribution is good enough.
 func generateProfiles(userAgents []string) []*Profile {
+	// TODO: declare this with make to avoid reallocation
 	profiles := []*Profile{}
 
 	// TODO: Maybe implement this as a cartesian product?

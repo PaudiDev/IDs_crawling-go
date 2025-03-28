@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"net/http"
-	"net/http/cookiejar"
 	"strconv"
 	"time"
 
@@ -76,13 +74,6 @@ func (bWk *BackupWorker) Run(
 		}
 	}()
 
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, bWk.logFormat("cookie jar must be created to start the worker"))
-
-	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	isFirstItem := true
 	for {
 		select {
 		case <-bWk.Ctx.Done():
@@ -95,15 +86,6 @@ func (bWk *BackupWorker) Run(
 				return outcome.RateLimits
 			}() > cfg.Http.MaxRateLimitsPerSecond {
 				time.Sleep((time.Duration)(cfg.Http.RateLimitWait) * time.Second)
-			}
-
-			// only make the fetch cookie request and start the loop goroutine
-			// once the first item is received to avoid a big amount of requests
-			// sent at the same time in case many workers are started at the same time
-			if isFirstItem {
-				network.FetchCookie(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand)
-				go network.FetchCookieLoop(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand, logChan)
-				isFirstItem = false
 			}
 
 			var itemID int = itemPacket.ItemID
@@ -142,11 +124,13 @@ func (bWk *BackupWorker) Run(
 					time.Sleep((time.Duration)(bWk.Delay) * time.Millisecond)
 				}
 
-				decodedResp, err := network.FetchDirectJSONUrl(bWk.Ctx, url, jar, cfg.Http.Timeout, bWk.Rand)
+				cookieJarSession := network.PickRandomCookieJarSession(bWk.Rand)
+
+				decodedResp, err := network.FetchDirectJSONUrl(bWk.Ctx, url, cookieJarSession.CookieJar, cfg.Http.Timeout, bWk.Rand)
 				if err != nil {
 					switch {
 					case errors.Is(err, customerrors.ErrorUnauthorized):
-						network.FetchCookie(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand)
+						cookieJarSession.RefreshChan <- struct{}{}
 						s401++
 					case errors.Is(err, customerrors.ErrorRateLimit):
 						s429++

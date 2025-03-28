@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"net/http"
-	"net/http/cookiejar"
 	"time"
 
 	"crawler/app/pkg/assert"
@@ -70,13 +68,6 @@ func (sWk *SubordinateWorker) Run(
 		}
 	}()
 
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, sWk.logFormat("cookie jar must be created to start the worker"))
-
-	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	isFirstItem := true
 	for {
 		select {
 		case <-sWk.Ctx.Done():
@@ -91,16 +82,9 @@ func (sWk *SubordinateWorker) Run(
 				time.Sleep((time.Duration)(cfg.Http.RateLimitWait) * time.Second)
 			}
 
-			// only make the fetch cookie request and start the loop goroutine
-			// once the first item is received to avoid a big amount of requests
-			// sent at the same time in case many workers are started at the same time
-			if isFirstItem {
-				network.FetchCookie(sWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, sWk.Rand)
-				go network.FetchCookieLoop(sWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, sWk.Rand, logChan)
-				isFirstItem = false
-			}
+			cookieJarSession := network.PickRandomCookieJarSession(sWk.Rand)
 
-			decodedResp, appendedSuffix, err := network.FetchItem(sWk.Ctx, cfg, jar, itemID, sWk.Rand)
+			decodedResp, appendedSuffix, err := network.FetchItem(sWk.Ctx, cfg, cookieJarSession.CookieJar, itemID, sWk.Rand)
 			if err != nil {
 				sWk.BackupChan <- wtypes.BackupPacket{
 					ItemID:       itemID,
@@ -112,7 +96,7 @@ func (sWk *SubordinateWorker) Run(
 
 				switch {
 				case errors.Is(err, customerrors.ErrorUnauthorized):
-					network.FetchCookie(sWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, sWk.Rand)
+					cookieJarSession.RefreshChan <- struct{}{}
 					outcome.Mu.Lock()
 					outcome.OtherErrs++
 					outcome.Mu.Unlock()

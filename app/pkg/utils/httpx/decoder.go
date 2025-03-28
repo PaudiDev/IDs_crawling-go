@@ -17,7 +17,7 @@ func DecompressResponseBody(response *http.Response) (reader io.Reader, cleanup 
 		cleanup = func() { reader.(*gzip.Reader).Close() }
 	case "deflate":
 		reader = flate.NewReader(response.Body)
-		cleanup = func() { reader.(io.ReadCloser).Close() }
+		cleanup = func() { reader.(io.ReadCloser).Close() } // FIXME: probably this io.ReadCloser.Close() does not work
 	case "br":
 		reader = brotli.NewReader(response.Body)
 		cleanup = func() {}

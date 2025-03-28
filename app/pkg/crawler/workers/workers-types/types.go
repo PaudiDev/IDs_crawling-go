@@ -1,6 +1,7 @@
 package workerstypes
 
 import (
+	"net/http"
 	"sync"
 
 	assetshandler "crawler/app/pkg/assets-handler"
@@ -90,6 +91,11 @@ type ThresholdsWorkerResult struct {
 type BackupPacket struct {
 	ItemID       int
 	AppendSuffix bool
+}
+
+type CookieJarSession struct {
+	CookieJar   http.CookieJar
+	RefreshChan chan struct{}
 }
 
 type WsContentElement struct {

@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"math"
 	"math/rand"
-	"net/http"
-	"net/http/cookiejar"
 	"os"
 	"time"
 
@@ -90,27 +88,62 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 
 	var handlers *wtypes.Handlers = wtypes.NewHandlers()
 
+	// traceFn := func(uniqId string) context.Context {
+	// 	trace := &httptrace.ClientTrace{
+	// 		GetConn: func(hostPort string) {
+	// 			fmt.Println("GetConn id:", uniqId, hostPort)
+	// 		},
+	// 		GotConn: func(connInfo httptrace.GotConnInfo) {
+	// 			fmt.Println("GotConn id:", uniqId, connInfo.Conn.LocalAddr())
+	// 		},
+
+	// 		ConnectStart: func(network, addr string) {
+	// 			fmt.Println("ConnectStart id:", uniqId, network, addr)
+	// 		},
+	// 		ConnectDone: func(network, addr string, err error) {
+	// 			fmt.Println("ConnectDone id:", uniqId, network, addr, err)
+	// 		},
+	// 	}
+	// 	return httptrace.WithClientTrace(ctx, trace)
+	// }
+
 	//
-	// Start the workers
+	// Start the cookies refresher workers
+	//
+
+	cookieJarSessionsPool := network.CookieJarSessionsPool
+	for i, cookieJarSession := range cookieJarSessionsPool {
+		cWk := &workers.CookiesRefreshWorker{
+			ID:               i,
+			Ctx:              ctx, // traceFn("C" + strconv.Itoa(i)),
+			CookieJarSession: cookieJarSession,
+			Rand:             rand.New(rand.NewSource(time.Now().UnixNano())),
+		}
+
+		go cWk.Run(cfg, cfg.Standard.SessionCookieNames)
+	}
+
+	//
+	// Start the main workers
 	//
 
 	for i := 1; i <= subWorkersAmount; i++ {
-		cWk := &workers.SubordinateWorker{
+		sWk := &workers.SubordinateWorker{
 			ID:           i,
-			Ctx:          ctx,
+			Ctx:          ctx, // traceFn("S" + strconv.Itoa(i)),
 			ItemsIDsChan: subordinateWkIDsChannel,
 			ResultsChan:  wsChan,
 			BackupChan:   backupChan,
 			Rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go cWk.Run(cfg, core, state, outcome, handlers)
+		go sWk.Run(cfg, core, state, outcome, handlers)
 	}
 
 	for j := 1; j <= backupWorkersAmount; j++ {
 		bWk := &workers.BackupWorker{
 			ID:           j,
-			Ctx:          ctx,
+			Ctx:          ctx, // traceFn("B" + strconv.Itoa(j)),
 			ItemsIDsChan: backupChan,
 			ResultsChan:  wsChan,
 			MaxRetries:   int16(maxRetriesPerItem) - 1,
@@ -124,7 +157,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	for k := 1; k <= idealMaxThresholdsAmount; k++ {
 		tWk := &workers.ThresholdsWorker{
 			ID:           k,
-			Ctx:          ctx,
+			Ctx:          ctx, // traceFn("T" + strconv.Itoa(k)),
 			ItemsIDsChan: thresholdsWkIDsChan,
 			ResultsChan:  thresholdsWkResultsChan,
 			Rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -157,22 +190,18 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	// Setup workers manager related variables
 	//
 
-	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	mainRand := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, "cookie jar must be created to start the crawler")
+	// wait a bit for the cookies refresher workers to fetch the cookies for the first time
+	time.Sleep(5 * time.Second)
+	cookieJarSession := network.PickRandomCookieJarSession(mainRand)
 
-	// needed as fetchCookie expects a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	err = network.FetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, mainRand)
-	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
-
-	state.CurrentID, err = network.FetchHighestID(ctx, cfg, jar, mainRand)
+	var err error
+	state.CurrentID, err = network.FetchHighestID(ctx, cfg, cookieJarSession.CookieJar, mainRand)
 	assert.NoError(
 		err, "highest id fetch must be successful to start the crawler",
 		assert.AssertData{
-			"CookieJar": jar,
+			"CookieJar": cookieJarSession.CookieJar,
 		},
 	)
 	state.MostRecentID = state.CurrentID
@@ -198,6 +227,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	var wksManager workersManager = workersManager{
 		thresholdsController: thresholdsController,
 		offset:               25, // cfg.Thresholds.Offset,
+		rand:                 rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	wksManager.run(
 		thresholdsWkIDsChan,
@@ -209,6 +239,14 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 }
 
 func makeThresholdsAdjustmentPolicies() []thresholds.ThresholdsAdjustmentPolicy {
+	// return []thresholds.ThresholdsAdjustmentPolicy{
+	// 	{
+	// 		Percentage: 0,
+	// 		ComputeIncrement: func(currentTimestamp, newTimestamp uint32, thresholdsAmount uint16) int32 {
+	// 			return 0
+	// 		},
+	// 	},
+	// }
 	return []thresholds.ThresholdsAdjustmentPolicy{
 		{
 			Percentage: 0.9,

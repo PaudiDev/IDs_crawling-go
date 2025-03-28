@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"log/slog"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
+	"runtime"
 	"time"
 
 	"crawler/app/pkg/assert"
@@ -20,6 +24,16 @@ import (
 )
 
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe("0.0.0.0:6060", nil))
+	}()
+
+	go func() {
+		for range time.Tick(60 * time.Second) {
+			runtime.GC()
+		}
+	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	go shutdown.HandleSIGTERM(cancel)
 	assert.LoadCtxCancel(cancel)
@@ -50,6 +64,11 @@ func main() {
 	assert.NoError(
 		network.LoadUserAgents(httpAssets.UserAgents),
 		"no user agents found in file",
+	)
+
+	assert.NoError(
+		network.InitCookieJars(config.Http.CookiesSessionsAmount),
+		"error initializing cookie jars",
 	)
 
 	genProfilesAmount := network.GenerateAndLoadProfiles()
