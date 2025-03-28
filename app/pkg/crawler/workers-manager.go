@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"slices"
 
@@ -28,13 +29,19 @@ func (wkM *workersManager) run(
 ) {
 	var result *wtypes.ThresholdsWorkerResult
 	var highestThresholdID int = initialID
+	var initialOffset int = wkM.offset
+	var absInitialOffset float64 = math.Abs(float64(initialOffset))
 
 	for {
 		lastSuccID := highestThresholdID
 		thresholdsAmount := wkM.thresholdsController.GetThresholdsAmount()
 		results := make(map[int]*wtypes.ThresholdsWorkerResult, thresholdsAmount)
 		wkM.offset += wkM.rand.Intn(3) - 1
-		// TODO: remove this newsource from here, no sense
+
+		absOffset := math.Abs(float64(wkM.offset))
+		if absOffset >= 2*absInitialOffset || absOffset <= 0.5*absInitialOffset {
+			wkM.offset = initialOffset
+		}
 
 		for i := uint16(0); i < thresholdsAmount; i++ {
 			highestThresholdID += wkM.offset
