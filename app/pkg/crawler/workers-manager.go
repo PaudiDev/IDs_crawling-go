@@ -21,9 +21,9 @@ type workersManager struct {
 }
 
 func (wkM *workersManager) run(
-	thresholdsWkIDsChan chan<- int,
+	thresholdsWkIDsChan chan<- wtypes.BChan,
 	thresholdsWkResultsChan <-chan *wtypes.ThresholdsWorkerResult,
-	subordinateWkChan chan<- int,
+	subordinateWkChan chan<- wtypes.BChan,
 	successfulItemsChan chan<- *wtypes.WsContentElement,
 	initialID int,
 ) {
@@ -31,6 +31,8 @@ func (wkM *workersManager) run(
 	var highestThresholdID int = initialID
 	var initialOffset int = wkM.offset
 	var absInitialOffset float64 = math.Abs(float64(initialOffset))
+
+	var batchID uint64 = 1
 
 	for {
 		lastSuccID := highestThresholdID
@@ -45,12 +47,21 @@ func (wkM *workersManager) run(
 
 		for i := uint16(0); i < thresholdsAmount; i++ {
 			highestThresholdID += wkM.offset
-			thresholdsWkIDsChan <- highestThresholdID
+			thresholdsWkIDsChan <- wtypes.BChan{
+				ID:      highestThresholdID,
+				BatchID: batchID,
+			}
 		}
 
 	getResults: // use a label to allow breaking the loop without an additional flag
 		for thresholdsAmount > 0 {
 			result = <-thresholdsWkResultsChan
+
+			// discard previous batch results that keep coming
+			if result.ItemID < lastSuccID {
+				continue
+			}
+
 			results[result.ItemID] = result
 
 			if result.Success {
@@ -99,11 +110,15 @@ func (wkM *workersManager) run(
 			for count := 0; count < succThresholdIDsLen; count++ {
 				interruptID := succThresholdIDs[count]
 				for id := lastSuccID + 1; id < interruptID; id++ {
-					subordinateWkChan <- id
+					subordinateWkChan <- wtypes.BChan{
+						ID:      id,
+						BatchID: batchID,
+					}
 				}
 				lastSuccID = interruptID
 			}
 		}
+		fmt.Println("batch ID:", batchID)
 		fmt.Println("current wsChan size:", len(successfulItemsChan))
 		fmt.Println("current subWKChan size:", len(subordinateWkChan))
 		fmt.Println("hit threshold level:", thresholdsAmount)
@@ -111,6 +126,7 @@ func (wkM *workersManager) run(
 		fmt.Println("offset: ", wkM.offset)
 		fmt.Println("last successful ID:", lsID)
 		fmt.Println("highest threshold ID:", lastSuccID)
+		batchID++
 
 		wkM.thresholdsController.Update(
 			&thresholds.ThresholdsControllerInput{

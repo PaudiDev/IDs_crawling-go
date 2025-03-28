@@ -21,7 +21,7 @@ type ThresholdsWorker struct {
 	Ctx context.Context
 
 	// ItemsIDsChan will be used to receive the IDs of the items to fetch.
-	ItemsIDsChan <-chan int
+	ItemsIDsChan <-chan wtypes.BChan
 
 	// ResultsChan is used to send all fetches results (both successful and failed)
 	// to something that processes them.
@@ -71,7 +71,7 @@ func (tWk *ThresholdsWorker) Run(
 		case <-tWk.Ctx.Done():
 			tWk.Fatal = fmt.Errorf("worker %v ctx done", tWk.ID)
 			return
-		case itemID := <-tWk.ItemsIDsChan:
+		case itemB := <-tWk.ItemsIDsChan:
 			if func() int {
 				outcome.Mu.Lock()
 				defer outcome.Mu.Unlock()
@@ -79,6 +79,8 @@ func (tWk *ThresholdsWorker) Run(
 			}() > cfg.Http.MaxRateLimitsPerSecond {
 				time.Sleep((time.Duration)(cfg.Http.RateLimitWait) * time.Second)
 			}
+
+			itemID := itemB.ID
 
 			cookieJarSession := network.PickRandomCookieJarSession(tWk.Rand)
 
@@ -107,8 +109,8 @@ func (tWk *ThresholdsWorker) Run(
 				logChan <- ctypes.LogData{
 					Level: slog.LevelWarn,
 					Msg: fmt.Sprintf(
-						"got an error fetching threshold item (ID %d). %s",
-						itemID, err.Error(),
+						"got an error fetching threshold item (ID %d, B %d). %s",
+						itemID, itemB.BatchID, err.Error(),
 					),
 				}
 
@@ -155,7 +157,7 @@ func (tWk *ThresholdsWorker) Run(
 			// XXX: In production this can be removed for increased performance
 			logChan <- ctypes.LogData{
 				Level: slog.LevelDebug,
-				Msg:   fmt.Sprintf("threshold item (ID %d) fetched ----- %d", itemID, tmp_d),
+				Msg:   fmt.Sprintf("threshold item (ID %d B %d) fetched ----- %d", itemID, itemB.BatchID, tmp_d),
 			}
 		}
 	}

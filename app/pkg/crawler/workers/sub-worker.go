@@ -21,7 +21,7 @@ type SubordinateWorker struct {
 	Ctx context.Context
 
 	// ItemsIDsChan will be used to receive the IDs of the items to fetch.
-	ItemsIDsChan <-chan int
+	ItemsIDsChan <-chan wtypes.BChan
 
 	// ResultsChan is used to send successful fetches results to something that processes them.
 	ResultsChan chan<- *wtypes.WsContentElement
@@ -73,7 +73,8 @@ func (sWk *SubordinateWorker) Run(
 		case <-sWk.Ctx.Done():
 			sWk.Fatal = fmt.Errorf("worker %v ctx done", sWk.ID)
 			return
-		case itemID := <-sWk.ItemsIDsChan:
+		case itemB := <-sWk.ItemsIDsChan:
+			itemID := itemB.ID
 			if func() int {
 				outcome.Mu.Lock()
 				defer outcome.Mu.Unlock()
@@ -117,8 +118,8 @@ func (sWk *SubordinateWorker) Run(
 				logChan <- ctypes.LogData{
 					Level: slog.LevelWarn,
 					Msg: fmt.Sprintf(
-						"got an error fetching item (ID %d). %s",
-						itemID, err.Error(),
+						"got an error fetching item (ID %d, B %d). %s",
+						itemID, itemB.BatchID, err.Error(),
 					),
 				}
 				continue
@@ -155,7 +156,7 @@ func (sWk *SubordinateWorker) Run(
 			// XXX: In production this can be removed for increased performance
 			logChan <- ctypes.LogData{
 				Level: slog.LevelDebug,
-				Msg:   fmt.Sprintf("item (ID %d) fetched ----- %d", itemID, tmp_d),
+				Msg:   fmt.Sprintf("item (ID %d, B %d) fetched ----- %d", itemID, itemB.BatchID, tmp_d),
 			}
 		}
 	}

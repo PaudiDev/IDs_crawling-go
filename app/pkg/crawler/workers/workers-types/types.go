@@ -105,3 +105,8 @@ type WsContentElement struct {
 
 	ContentID int
 }
+
+type BChan struct {
+	ID      int
+	BatchID uint64
+}

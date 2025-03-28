@@ -38,13 +38,13 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	// TODO: maybe in future handle this by dynamically spawning workers
 	// or putting them in a pool, this ideal limit is not the best for every purpose.
 	idealMaxThresholdsAmount := math.MaxUint16 / 500
-	thresholdsWkIDsChan := make(chan int, idealMaxThresholdsAmount)
+	thresholdsWkIDsChan := make(chan wtypes.BChan, idealMaxThresholdsAmount)
 	thresholdsWkResultsChan := make(chan *wtypes.ThresholdsWorkerResult, idealMaxThresholdsAmount)
 
 	var subWorkersAmount int = 25 * idealMaxThresholdsAmount / 2 // TODO: replace 25 with cfg.Thresholds.Offset
 
 	// same reasoning as the backup workers amount.
-	subordinateWkIDsChannel := make(chan int, subWorkersAmount*3)
+	subordinateWkIDsChannel := make(chan wtypes.BChan, subWorkersAmount*3)
 	fmt.Println("Initial size:", subWorkersAmount*3)
 
 	// Let's rename "subWorkersAmount" to N, "maxRetriesPerItem" to M and
