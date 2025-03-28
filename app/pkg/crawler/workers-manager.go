@@ -75,6 +75,8 @@ func (wkM *workersManager) run(
 			}
 		}
 
+		lsID := lastSuccID
+
 		var timestamp uint32
 		if thresholdsAmount <= 0 {
 			timestamp = 0
@@ -107,6 +109,8 @@ func (wkM *workersManager) run(
 		fmt.Println("hit threshold level:", thresholdsAmount)
 		fmt.Println("thresholds amount:", wkM.thresholdsController.GetThresholdsAmount())
 		fmt.Println("offset: ", wkM.offset)
+		fmt.Println("last successful ID:", lsID)
+		fmt.Println("highest threshold ID:", lastSuccID)
 
 		wkM.thresholdsController.Update(
 			&thresholds.ThresholdsControllerInput{
