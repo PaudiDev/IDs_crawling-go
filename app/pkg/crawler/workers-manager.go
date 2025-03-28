@@ -106,6 +106,7 @@ func (wkM *workersManager) run(
 		fmt.Println("current subWKChan size:", len(subordinateWkChan))
 		fmt.Println("hit threshold level:", thresholdsAmount)
 		fmt.Println("thresholds amount:", wkM.thresholdsController.GetThresholdsAmount())
+		fmt.Println("offset: ", wkM.offset)
 
 		wkM.thresholdsController.Update(
 			&thresholds.ThresholdsControllerInput{
