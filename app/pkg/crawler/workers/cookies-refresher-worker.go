@@ -13,6 +13,8 @@ import (
 	ctypes "crawler/app/pkg/custom-types"
 )
 
+// This struct does not implement the Worker interface.
+// However, the directory is the same for structural organization purposes.
 type CookiesRefreshWorker struct {
 	ID  int
 	Ctx context.Context

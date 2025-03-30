@@ -123,13 +123,13 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 
 	for j := 1; j <= backupWorkersAmount; j++ {
 		bWk := &workers.BackupWorker{
-			ID:          j,
-			Ctx:         ctx,
-			ItemsChan:   backupChan,
-			ResultsChan: wsChan,
-			MaxRetries:  int16(maxRetriesPerItem) - 1,
-			Delay:       delayBetweenRetries,
-			Rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
+			ID:                    j,
+			Ctx:                   ctx,
+			ItemsBackupPacketChan: backupChan,
+			ResultsChan:           wsChan,
+			MaxRetries:            int16(maxRetriesPerItem) - 1,
+			Delay:                 delayBetweenRetries,
+			Rand:                  rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
 		go bWk.Run(cfg, core, state, outcome, handlers)

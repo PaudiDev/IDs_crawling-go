@@ -17,6 +17,9 @@ import (
 // WebsocketWorker is a worker that sends the contents received from ContentsChan
 // to one websocket client out of the Conns parameter set.
 // The websocket client is selected sequentially in a cyclic way from the conns set.
+//
+// This struct does not implement the Worker interface.
+// However, the directory is the same for structural organization purposes.
 type WebsocketWorker struct {
 	ID  int
 	Ctx context.Context
