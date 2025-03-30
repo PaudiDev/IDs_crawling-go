@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"net/http"
-	"net/http/cookiejar"
 	"strconv"
 	"time"
 
@@ -81,15 +79,6 @@ func (bWk *BackupWorker) Run(
 	var currentConnIdx int = 0
 	var connsAmount int = len(conns)
 
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, bWk.logFormat("cookie jar must be created to start the worker"))
-
-	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	network.FetchCookie(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand)
-	go network.FetchCookieLoop(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand, logChan)
-
 	for {
 		select {
 		case <-bWk.Ctx.Done():
@@ -140,11 +129,16 @@ func (bWk *BackupWorker) Run(
 					time.Sleep((time.Duration)(bWk.Delay) * time.Millisecond)
 				}
 
-				decodedResp, err := network.FetchDirectJSONUrl(bWk.Ctx, url, jar, cfg.Http.Timeout, bWk.Rand)
+				cookieJarSession := network.PickRandomCookieJarSession(bWk.Rand)
+
+				decodedResp, err := network.FetchDirectJSONUrl(bWk.Ctx, url, cookieJarSession.CookieJar, cfg.Http.Timeout, bWk.Rand)
 				if err != nil {
 					switch {
 					case errors.Is(err, customerrors.ErrorUnauthorized):
-						network.FetchCookie(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand)
+						select {
+						case cookieJarSession.RefreshChan <- struct{}{}:
+						default: // channel is full, the refresher is already working on this
+						}
 						s401++
 					case errors.Is(err, customerrors.ErrorRateLimit):
 						s429++

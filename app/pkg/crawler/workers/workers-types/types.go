@@ -1,6 +1,7 @@
 package workerstypes
 
 import (
+	"net/http"
 	"sync"
 
 	assetshandler "crawler/app/pkg/assets-handler"
@@ -79,4 +80,9 @@ func NewHandlers() *Handlers {
 type BackupPacket struct {
 	ItemID       int
 	AppendSuffix bool
+}
+
+type CookieJarSession struct {
+	CookieJar   http.CookieJar
+	RefreshChan chan struct{}
 }

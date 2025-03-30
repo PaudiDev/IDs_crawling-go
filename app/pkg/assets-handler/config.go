@@ -21,14 +21,16 @@ type core struct {
 }
 
 type http struct {
-	Timeout                int             `yaml:"requests_timeout_seconds"`
-	CookiesRefreshDelay    int             `yaml:"cookies_refresh_delay"`
-	MaxRetriesPerItem      uint8           `yaml:"max_retries_per_item"`
-	DelayBetweenRetries    uint64          `yaml:"delay_between_retries_milli"`
-	MaxRateLimitsPerSecond int             `yaml:"max_rate_limits_per_second"`
-	RateLimitWait          int             `yaml:"rate_limit_wait_seconds"`
-	StepData               stepData        `yaml:"step_data"`
-	ConcurrencyData        concurrencyData `yaml:"concurrency_data"`
+	Timeout                      int             `yaml:"requests_timeout_seconds"`
+	CookiesSessionsAmount        uint16          `yaml:"cookies_sessions_amount"`
+	CookiesRefreshDelay          int             `yaml:"cookies_refresh_delay"`
+	CrashOnFirstCookieFetchError bool            `yaml:"crash_on_first_cookie_fetch_error"`
+	MaxRetriesPerItem            uint8           `yaml:"max_retries_per_item"`
+	DelayBetweenRetries          uint64          `yaml:"delay_between_retries_milli"`
+	MaxRateLimitsPerSecond       int             `yaml:"max_rate_limits_per_second"`
+	RateLimitWait                int             `yaml:"rate_limit_wait_seconds"`
+	StepData                     stepData        `yaml:"step_data"`
+	ConcurrencyData              concurrencyData `yaml:"concurrency_data"`
 }
 
 type standard struct {

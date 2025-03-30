@@ -6,9 +6,8 @@ import (
 	"log/slog"
 	"math"
 	"math/rand"
-	"net/http"
-	"net/http/cookiejar"
 	"os"
+	"sync"
 	"time"
 
 	"crawler/app/pkg/assert"
@@ -22,29 +21,9 @@ import (
 func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeConn, statusLogFile *os.File) {
 	slog.Info("Crawler Started...")
 
-	var mainRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, "cookie jar must be created to start the crawler")
-
-	// needed as fetchCookie expects a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	err = network.FetchCookie(ctx, cfg, &jar, cfg.Standard.SessionCookieNames, mainRand)
-	assert.NoError(err, "first cookie fetch must be successful to start the crawler")
-
 	var core *wtypes.Core = wtypes.NewCore(cfg)
 	var state *wtypes.State = wtypes.NewState(cfg)
 	var outcome *wtypes.Outcome = new(wtypes.Outcome)
-
-	state.CurrentID, err = network.FetchHighestID(ctx, cfg, jar, mainRand)
-	assert.NoError(
-		err, "highest id fetch must be successful to start the crawler",
-		assert.AssertData{
-			"CookieJar": jar,
-		},
-	)
-	state.MostRecentID = state.CurrentID
 
 	var crawlWorkersAmount int = cfg.Core.MaxConcurrency
 	var maxRetriesPerItem uint8 = cfg.Http.MaxRetriesPerItem
@@ -83,6 +62,37 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	backupWorkersAmount *= 1 + int(math.Ceil((float64)(delayBetweenRetries)/1000))
 	var backupChan chan wtypes.BackupPacket = make(chan wtypes.BackupPacket, backupWorkersAmount*2)
 	var handlers *wtypes.Handlers = wtypes.NewHandlers()
+
+	var wg sync.WaitGroup
+
+	for i, cookieJarSession := range network.CookieJarSessionsPool {
+		wg.Add(1)
+		cWk := &workers.CookiesRefreshWorker{
+			ID:               i,
+			Ctx:              ctx,
+			CookieJarSession: cookieJarSession,
+			OnSessionReady:   wg.Done,
+			Rand:             rand.New(rand.NewSource(time.Now().UnixNano())),
+		}
+
+		go cWk.Run(cfg, cfg.Standard.SessionCookieNames)
+	}
+
+	mainRand := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// wait for the cookies refresher workers to fetch all the cookies for the first time
+	wg.Wait()
+	cookieJarSession := network.PickRandomCookieJarSession(mainRand)
+
+	var err error
+	state.CurrentID, err = network.FetchHighestID(ctx, cfg, cookieJarSession.CookieJar, mainRand)
+	assert.NoError(
+		err, "highest id fetch must be successful to start the crawler",
+		assert.AssertData{
+			"CookieJar": cookieJarSession.CookieJar,
+		},
+	)
+	state.MostRecentID = state.CurrentID
 
 	for i := 1; i <= crawlWorkersAmount; i++ {
 		cWk := &workers.CrawlWorker{
