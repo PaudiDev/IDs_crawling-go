@@ -5,6 +5,9 @@ core:
 
 http:
   requests_timeout_seconds: 5
+  cookies_sessions_amount: 5
+  cookies_refresh_delay: 600    # 10 minutes
+  crash_on_first_cookie_fetch_error: true
   max_retries_per_item: 5
   delay_between_retries_milli: 100
   max_rate_limits_per_second: 3

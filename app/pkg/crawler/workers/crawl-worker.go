@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"net/http"
-	"net/http/cookiejar"
 	"time"
 
 	"crawler/app/pkg/assert"
@@ -72,15 +70,6 @@ func (cWk *CrawlWorker) Run(
 	var currentConnIdx int = 0
 	var connsAmount int = len(conns)
 
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, cWk.logFormat("cookie jar must be created to start the worker"))
-
-	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	network.FetchCookie(cWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, cWk.Rand)
-	go network.FetchCookieLoop(cWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, cWk.Rand, logChan)
-
 	var nonExistingOffset int = 500
 	var selectedItemID int
 	for {
@@ -142,7 +131,9 @@ func (cWk *CrawlWorker) Run(
 			selectedItemID = state.CurrentID
 			state.Mu.Unlock()
 
-			decodedResp, appendedSuffix, err := network.FetchItem(cWk.Ctx, cfg, jar, selectedItemID, cWk.Rand)
+			cookieJarSession := network.PickRandomCookieJarSession(cWk.Rand)
+
+			decodedResp, appendedSuffix, err := network.FetchItem(cWk.Ctx, cfg, cookieJarSession.CookieJar, selectedItemID, cWk.Rand)
 			if err != nil {
 				cWk.BackupChan <- wtypes.BackupPacket{
 					ItemID:       selectedItemID,
@@ -154,7 +145,10 @@ func (cWk *CrawlWorker) Run(
 
 				switch {
 				case errors.Is(err, customerrors.ErrorUnauthorized):
-					network.FetchCookie(cWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, cWk.Rand)
+					select {
+					case cookieJarSession.RefreshChan <- struct{}{}:
+					default: // channel is full, the refresher is already working on this
+					}
 					outcome.Mu.Lock()
 					outcome.OtherErrs++
 					outcome.Mu.Unlock()

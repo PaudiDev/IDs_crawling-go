@@ -52,6 +52,11 @@ func main() {
 		"no user agents found in file",
 	)
 
+	assert.NoError(
+		network.InitCookieJars(config.Http.CookiesSessionsAmount),
+		"error initializing cookie jars",
+	)
+
 	genProfilesAmount := network.GenerateAndLoadProfiles()
 	slog.Info(fmt.Sprintf("generated %d network profiles", genProfilesAmount))
 
