@@ -60,7 +60,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 		backupWorkersAmount = crawlWorkersAmount * (int)(maxRetriesPerItem)
 	}
 	backupWorkersAmount *= 1 + int(math.Ceil((float64)(delayBetweenRetries)/1000))
-	backupChan := make(chan wtypes.BackupPacket, backupWorkersAmount*2)
+	backupChan := make(chan *wtypes.BackupPacket, backupWorkersAmount*2)
 
 	// this channel is used to send results by subordinate Wks and backup Wks.
 	// since the backup workers are the ones in majority, the channel size is

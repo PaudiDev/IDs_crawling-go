@@ -25,7 +25,7 @@ type BackupWorker struct {
 	// of the items (identified with their IDs) that need to be fetched by the backup worker.
 	// The packet also specifies if the url suffix has been appeneded in the original
 	// request.
-	ItemsChan <-chan (wtypes.BackupPacket)
+	ItemsChan <-chan *wtypes.BackupPacket
 
 	// ResultsChan is used to send successful fetches results to something that processes them.
 	ResultsChan chan<- *wtypes.ContentElement

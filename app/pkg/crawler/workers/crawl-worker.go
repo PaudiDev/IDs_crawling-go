@@ -24,7 +24,7 @@ type CrawlWorker struct {
 	// that it has to fetch an item due to a miss, indicated by its ID.
 	// It also specifies if the url suffix has been appeneded in the original
 	// request.
-	BackupChan chan<- wtypes.BackupPacket
+	BackupChan chan<- *wtypes.BackupPacket
 
 	// ResultsChan is used to send successful fetches results to something that processes them.
 	ResultsChan chan<- *wtypes.ContentElement
@@ -130,7 +130,7 @@ func (cWk *CrawlWorker) Run(
 
 			decodedResp, appendedSuffix, err := network.FetchItem(cWk.Ctx, cfg, cookieJarSession.CookieJar, selectedItemID, cWk.Rand)
 			if err != nil {
-				cWk.BackupChan <- wtypes.BackupPacket{
+				cWk.BackupChan <- &wtypes.BackupPacket{
 					ItemID:       selectedItemID,
 					AppendSuffix: appendedSuffix,
 				}
