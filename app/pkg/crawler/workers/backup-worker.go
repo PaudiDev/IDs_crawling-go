@@ -21,11 +21,11 @@ type BackupWorker struct {
 	ID  int
 	Ctx context.Context
 
-	// ItemsChan is filled overtime (by the main worker(s)) with the BackupPackets
+	// ItemsBackupPacketChan is filled overtime (by the main worker(s)) with the BackupPackets
 	// of the items (identified with their IDs) that need to be fetched by the backup worker.
 	// The packet also specifies if the url suffix has been appeneded in the original
 	// request.
-	ItemsChan <-chan *wtypes.BackupPacket
+	ItemsBackupPacketChan <-chan *wtypes.BackupPacket
 
 	// ResultsChan is used to send successful fetches results to something that processes them.
 	ResultsChan chan<- *wtypes.ContentElement
@@ -79,7 +79,7 @@ func (bWk *BackupWorker) Run(
 		case <-bWk.Ctx.Done():
 			bWk.Fatal = fmt.Errorf("worker %v ctx done", bWk.ID)
 			return
-		case itemPacket := <-bWk.ItemsChan:
+		case itemPacket := <-bWk.ItemsBackupPacketChan:
 			if func() int {
 				outcome.Mu.Lock()
 				defer outcome.Mu.Unlock()
