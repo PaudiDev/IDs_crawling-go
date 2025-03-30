@@ -2,7 +2,6 @@ package workers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,9 +14,6 @@ import (
 	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
-	safews "crawler/app/pkg/safe-ws"
-
-	"github.com/gorilla/websocket"
 )
 
 type CrawlWorker struct {
@@ -30,6 +26,9 @@ type CrawlWorker struct {
 	// request.
 	BackupChan chan<- wtypes.BackupPacket
 
+	// ResultsChan is used to send successful fetches results to something that processes them.
+	ResultsChan chan<- *wtypes.ContentElement
+
 	Rand  *rand.Rand
 	Fatal error
 }
@@ -40,7 +39,6 @@ func (cWk *CrawlWorker) Run(
 	state *wtypes.State,
 	outcome *wtypes.Outcome,
 	handlers *wtypes.Handlers,
-	conns []*safews.SafeConn,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -66,9 +64,6 @@ func (cWk *CrawlWorker) Run(
 			}
 		}
 	}()
-
-	var currentConnIdx int = 0
-	var connsAmount int = len(conns)
 
 	var nonExistingOffset int = 500
 	var selectedItemID int
@@ -184,32 +179,10 @@ func (cWk *CrawlWorker) Run(
 				defer state.Mu.Unlock()
 				return state.MostRecentID
 			}() {
-				go func() {
-					jsonResponse, err := json.Marshal(decodedResp)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error marshalling item response to json, "+
-									"impossible sending to websocket (ID %v): %v",
-								selectedItemID, err,
-							),
-						}
-						return
-					}
-
-					err = conns[currentConnIdx].WriteMessage(websocket.TextMessage, jsonResponse)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error sending item to websocket (ID %v): %v",
-								selectedItemID, err,
-							),
-						}
-					}
-					currentConnIdx = (currentConnIdx + 1) % connsAmount
-				}()
+				cWk.ResultsChan <- &wtypes.ContentElement{
+					Content:   decodedResp,
+					ContentID: selectedItemID,
+				}
 
 				state.Mu.Lock()
 				state.MostRecentID = selectedItemID

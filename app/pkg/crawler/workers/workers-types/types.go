@@ -86,3 +86,11 @@ type CookieJarSession struct {
 	CookieJar   http.CookieJar
 	RefreshChan chan struct{}
 }
+
+type ContentElement struct {
+	// the actual content to process.
+	// it is a map[string]interface{} that represents the JSON object.
+	Content map[string]interface{}
+
+	ContentID int
+}

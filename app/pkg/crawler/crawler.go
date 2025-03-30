@@ -60,7 +60,13 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 		backupWorkersAmount = crawlWorkersAmount * (int)(maxRetriesPerItem)
 	}
 	backupWorkersAmount *= 1 + int(math.Ceil((float64)(delayBetweenRetries)/1000))
-	var backupChan chan wtypes.BackupPacket = make(chan wtypes.BackupPacket, backupWorkersAmount*2)
+	backupChan := make(chan wtypes.BackupPacket, backupWorkersAmount*2)
+
+	// this channel is used to send results by subordinate Wks and backup Wks.
+	// since the backup workers are the ones in majority, the channel size is
+	// set to their amount.
+	wsChan := make(chan *wtypes.ContentElement, backupWorkersAmount)
+
 	var handlers *wtypes.Handlers = wtypes.NewHandlers()
 
 	var wg sync.WaitGroup
@@ -77,6 +83,15 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 
 		go cWk.Run(cfg, cfg.Standard.SessionCookieNames)
 	}
+
+	wsWk := &workers.WebsocketWorker{
+		ID:           1,
+		Ctx:          ctx,
+		ContentsChan: wsChan,
+		Conns:        conns,
+	}
+
+	go wsWk.Run()
 
 	mainRand := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -96,26 +111,28 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 
 	for i := 1; i <= crawlWorkersAmount; i++ {
 		cWk := &workers.CrawlWorker{
-			ID:         i,
-			Ctx:        ctx,
-			BackupChan: backupChan,
-			Rand:       rand.New(rand.NewSource(time.Now().UnixNano())),
+			ID:          i,
+			Ctx:         ctx,
+			ResultsChan: wsChan,
+			BackupChan:  backupChan,
+			Rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go cWk.Run(cfg, core, state, outcome, handlers, conns)
+		go cWk.Run(cfg, core, state, outcome, handlers)
 	}
 
 	for j := 1; j <= backupWorkersAmount; j++ {
 		bWk := &workers.BackupWorker{
-			ID:         j,
-			Ctx:        ctx,
-			ItemsChan:  backupChan,
-			MaxRetries: int16(maxRetriesPerItem) - 1,
-			Delay:      delayBetweenRetries,
-			Rand:       rand.New(rand.NewSource(time.Now().UnixNano())),
+			ID:          j,
+			Ctx:         ctx,
+			ItemsChan:   backupChan,
+			ResultsChan: wsChan,
+			MaxRetries:  int16(maxRetriesPerItem) - 1,
+			Delay:       delayBetweenRetries,
+			Rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go bWk.Run(cfg, core, state, outcome, handlers, conns)
+		go bWk.Run(cfg, core, state, outcome, handlers)
 	}
 
 	slog.Info(fmt.Sprintf("%d crawl workers and %d backup workers Started...", crawlWorkersAmount, backupWorkersAmount))
