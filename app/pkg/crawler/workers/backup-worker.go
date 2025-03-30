@@ -2,7 +2,6 @@ package workers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,9 +15,6 @@ import (
 	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
-	safews "crawler/app/pkg/safe-ws"
-
-	"github.com/gorilla/websocket"
 )
 
 type BackupWorker struct {
@@ -30,6 +26,9 @@ type BackupWorker struct {
 	// The packet also specifies if the url suffix has been appeneded in the original
 	// request.
 	ItemsChan <-chan (wtypes.BackupPacket)
+
+	// ResultsChan is used to send successful fetches results to something that processes them.
+	ResultsChan chan<- *wtypes.ContentElement
 
 	// MaxRetries specifies the maximum amount of retries the backup worker can do
 	// on each item before skipping it and labeling it as lost / non existing.
@@ -49,7 +48,6 @@ func (bWk *BackupWorker) Run(
 	state *wtypes.State,
 	outcome *wtypes.Outcome,
 	handlers *wtypes.Handlers,
-	conns []*safews.SafeConn,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -75,9 +73,6 @@ func (bWk *BackupWorker) Run(
 			}
 		}
 	}()
-
-	var currentConnIdx int = 0
-	var connsAmount int = len(conns)
 
 	for {
 		select {
@@ -151,36 +146,14 @@ func (bWk *BackupWorker) Run(
 					continue
 				}
 
+				bWk.ResultsChan <- &wtypes.ContentElement{
+					Content:   decodedResp,
+					ContentID: itemID,
+				}
+
 				outcome.Mu.Lock()
 				outcome.Recovered++
 				outcome.Mu.Unlock()
-
-				go func() {
-					jsonResponse, err := json.Marshal(decodedResp)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error marshalling item response to json, "+
-									"impossible sending to websocket (ID %v): %v",
-								itemID, err,
-							),
-						}
-						return
-					}
-
-					err = conns[currentConnIdx].WriteMessage(websocket.TextMessage, jsonResponse)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error sending item to websocket (ID %v): %v",
-								itemID, err,
-							),
-						}
-					}
-					currentConnIdx = (currentConnIdx + 1) % connsAmount
-				}()
 
 				var tsKey string
 				if appendedSuffix {
