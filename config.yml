@@ -2,6 +2,9 @@ core:
   max_concurrency: 35
   initial_concurrency: 3
   initial_step: 5
+  thresholds_initial_amount(max_255): 10
+  expected_max_thresholds_amount(max_255): 100
+  thresholds_offset(max_255): 50
 
 http:
   requests_timeout_seconds: 5
@@ -71,3 +74,13 @@ standard:
     - "cookie_name3"
   timestamp_format: "item_timestamp_format"
   initial_delay: 1000000
+
+thresholds_adjustment_policies:
+  - percentage: 0.9
+    compute_increment: "NewTimestamp >= CurrentTimestamp+500 ? max(ThresholdsAmount * 0.25, 2) : 1"
+  - percentage: 0.5
+    compute_increment: "0"
+  - percentage: 0.3
+    compute_increment: "-1"
+  - percentage: 0
+    compute_increment: "-0.25 * ThresholdsAmount"

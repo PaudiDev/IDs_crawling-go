@@ -77,6 +77,17 @@ func NewHandlers() *Handlers {
 	}
 }
 
+type ThresholdsWorkerResult struct {
+	Item   map[string]interface{}
+	ItemID int
+
+	// a flag indicating whether the item was fetched successfully or not
+	Success bool
+
+	// the timestamp of the item
+	Timestamp uint32
+}
+
 type BackupPacket struct {
 	ItemID       int
 	AppendSuffix bool
@@ -93,4 +104,12 @@ type ContentElement struct {
 	Content map[string]interface{}
 
 	ContentID int
+}
+
+// ItemFromBatchPacket is used to pass the ID of the item to fetch along with
+// the ID of the batch of generated item IDs it belongs to.
+// This is useful for debugging purposes.
+type ItemFromBatchPacket struct {
+	ItemID  int
+	BatchID uint16
 }

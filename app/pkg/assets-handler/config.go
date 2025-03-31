@@ -9,15 +9,19 @@ import (
 )
 
 type Config struct {
-	Core     core     `yaml:"core"`
-	Http     http     `yaml:"http"`
-	Standard standard `yaml:"standard"`
+	Core     core                     `yaml:"core"`
+	Http     http                     `yaml:"http"`
+	Standard standard                 `yaml:"standard"`
+	Policies []ThresholdsAdjPolicyCfg `yaml:"thresholds_adjustment_policies"`
 }
 
 type core struct {
-	MaxConcurrency     int `yaml:"max_concurrency"`
-	InitialConcurrency int `yaml:"initial_concurrency"`
-	InitialStep        int `yaml:"initial_step"`
+	MaxConcurrency          int   `yaml:"max_concurrency"`
+	InitialConcurrency      int   `yaml:"initial_concurrency"`
+	InitialStep             int   `yaml:"initial_step"`
+	ThresholdsInitialAmount uint8 `yaml:"thresholds_initial_amount(max_255)"`
+	ExpMaxThresholdsAmount  uint8 `yaml:"expected_max_thresholds_amount(max_255)"`
+	ThresholdsOffset        uint8 `yaml:"thresholds_offset(max_255)"`
 }
 
 type http struct {
@@ -41,6 +45,11 @@ type standard struct {
 	SessionCookieNames []string      `yaml:"session_cookie_names"`
 	TimestampFormat    string        `yaml:"timestamp_format"`
 	InitialDelay       int           `yaml:"initial_delay"`
+}
+
+type ThresholdsAdjPolicyCfg struct {
+	Percentage           float32 `yaml:"percentage"`
+	ComputeIncrementExpr string  `yaml:"compute_increment"`
 }
 
 type stepData struct {
