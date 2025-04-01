@@ -229,6 +229,7 @@ func FetchDirectJSONUrl(
 		return nil, err
 	}
 	defer cleanup()
+	defer response.Body.Close()
 
 	err = json.NewDecoder(body).Decode(&decodedResp)
 	if err != nil {

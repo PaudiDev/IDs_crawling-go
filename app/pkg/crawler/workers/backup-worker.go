@@ -2,13 +2,10 @@ package workers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
-	"net/http"
-	"net/http/cookiejar"
 	"strconv"
 	"time"
 
@@ -18,20 +15,20 @@ import (
 	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	ctypes "crawler/app/pkg/custom-types"
 	customerrors "crawler/app/pkg/custom-types/custom-errors"
-	safews "crawler/app/pkg/safe-ws"
-
-	"github.com/gorilla/websocket"
 )
 
 type BackupWorker struct {
 	ID  int
 	Ctx context.Context
 
-	// ItemsChan is filled overtime (by the main worker(s)) with the BackupPackets
+	// ItemsBackupPacketChan is filled overtime (by the main worker(s)) with the BackupPackets
 	// of the items (identified with their IDs) that need to be fetched by the backup worker.
 	// The packet also specifies if the url suffix has been appeneded in the original
 	// request.
-	ItemsChan <-chan (wtypes.BackupPacket)
+	ItemsBackupPacketChan <-chan *wtypes.BackupPacket
+
+	// ResultsChan is used to send successful fetches results to something that processes them.
+	ResultsChan chan<- *wtypes.ContentElement
 
 	// MaxRetries specifies the maximum amount of retries the backup worker can do
 	// on each item before skipping it and labeling it as lost / non existing.
@@ -47,11 +44,8 @@ type BackupWorker struct {
 
 func (bWk *BackupWorker) Run(
 	cfg *assetshandler.Config,
-	core *wtypes.Core,
 	state *wtypes.State,
 	outcome *wtypes.Outcome,
-	handlers *wtypes.Handlers,
-	conns []*safews.SafeConn,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -78,24 +72,12 @@ func (bWk *BackupWorker) Run(
 		}
 	}()
 
-	var currentConnIdx int = 0
-	var connsAmount int = len(conns)
-
-	cookieJar, err := cookiejar.New(nil)
-	assert.NoError(err, bWk.logFormat("cookie jar must be created to start the worker"))
-
-	// needed as fetchCookie and fetchCookieLoop expect a pointer to http.CookieJar
-	var jar http.CookieJar = cookieJar
-
-	network.FetchCookie(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand)
-	go network.FetchCookieLoop(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand, logChan)
-
 	for {
 		select {
 		case <-bWk.Ctx.Done():
 			bWk.Fatal = fmt.Errorf("worker %v ctx done", bWk.ID)
 			return
-		case itemPacket := <-bWk.ItemsChan:
+		case itemPacket := <-bWk.ItemsBackupPacketChan:
 			if func() int {
 				outcome.Mu.Lock()
 				defer outcome.Mu.Unlock()
@@ -140,11 +122,16 @@ func (bWk *BackupWorker) Run(
 					time.Sleep((time.Duration)(bWk.Delay) * time.Millisecond)
 				}
 
-				decodedResp, err := network.FetchDirectJSONUrl(bWk.Ctx, url, jar, cfg.Http.Timeout, bWk.Rand)
+				cookieJarSession := network.PickRandomCookieJarSession(bWk.Rand)
+
+				decodedResp, err := network.FetchDirectJSONUrl(bWk.Ctx, url, cookieJarSession.CookieJar, cfg.Http.Timeout, bWk.Rand)
 				if err != nil {
 					switch {
 					case errors.Is(err, customerrors.ErrorUnauthorized):
-						network.FetchCookie(bWk.Ctx, cfg, &jar, cfg.Standard.SessionCookieNames, bWk.Rand)
+						select {
+						case cookieJarSession.RefreshChan <- struct{}{}:
+						default: // channel is full, the refresher is already working on this
+						}
 						s401++
 					case errors.Is(err, customerrors.ErrorRateLimit):
 						s429++
@@ -157,36 +144,14 @@ func (bWk *BackupWorker) Run(
 					continue
 				}
 
+				bWk.ResultsChan <- &wtypes.ContentElement{
+					Content:   decodedResp,
+					ContentID: itemID,
+				}
+
 				outcome.Mu.Lock()
 				outcome.Recovered++
 				outcome.Mu.Unlock()
-
-				go func() {
-					jsonResponse, err := json.Marshal(decodedResp)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error marshalling item response to json, "+
-									"impossible sending to websocket (ID %v): %v",
-								itemID, err,
-							),
-						}
-						return
-					}
-
-					err = conns[currentConnIdx].WriteMessage(websocket.TextMessage, jsonResponse)
-					if err != nil {
-						logChan <- ctypes.LogData{
-							Level: slog.LevelError,
-							Msg: fmt.Sprintf(
-								"error sending item to websocket (ID %v): %v",
-								itemID, err,
-							),
-						}
-					}
-					currentConnIdx = (currentConnIdx + 1) % connsAmount
-				}()
 
 				var tsKey string
 				if appendedSuffix {
@@ -199,11 +164,14 @@ func (bWk *BackupWorker) Run(
 				rawTs := item[tsKey].(string)
 				parsedTs, err := time.Parse(cfg.Standard.TimestampFormat, rawTs)
 				assert.NoError(err, "timestamp must be parsed successfully")
-				tmp_d := (int)(time.Since(parsedTs).Milliseconds())
+
+				// it can happen that a server displays some items with a timestamp
+				// in the future for internal sync issues, so we make sure to keep
+				// the delay positive
+				delay := uint32(max(int(time.Since(parsedTs).Milliseconds()), 0))
 
 				state.Mu.Lock()
-				state.DelayNewest = tmp_d
-				state.Delays = append(state.Delays, tmp_d)
+				state.Delays = append(state.Delays, delay)
 				state.Mu.Unlock()
 
 				// XXX: In production this can be removed for increased performance
@@ -216,7 +184,7 @@ func (bWk *BackupWorker) Run(
 				logChan <- ctypes.LogData{
 					Level: slog.LevelDebug,
 					Msg: fmt.Sprintf("recovered item (ID %v) after %d %s (%d 401s, %d 404s, %d 429s, %d unknowns) ----- %v",
-						itemID, retriesAmount+1, retrySingPlur, s401, s404, s429, sOther, tmp_d),
+						itemID, retriesAmount+1, retrySingPlur, s401, s404, s429, sOther, delay),
 				}
 
 				break
@@ -240,5 +208,5 @@ func (bWk *BackupWorker) log(logChan <-chan ctypes.LogData) {
 }
 
 func (bWk *BackupWorker) logFormat(text string) string {
-	return fmt.Sprintf("(BackupWorker B%v): %s", bWk.ID, text)
+	return fmt.Sprintf("(BackupWorker B%d): %s", bWk.ID, text)
 }

@@ -1,82 +1,63 @@
 package workerstypes
 
 import (
+	"net/http"
 	"sync"
-
-	assetshandler "crawler/app/pkg/assets-handler"
 )
 
-// Must be initialized with the "NewCore" function
-type Core struct {
-	Concurrency   int
-	Step          int
-	Concurrencies []int
-	Steps         []int
-	Mu            sync.Mutex
-}
-
-// Must be initialized with the "NewState" function
 type State struct {
-	CurrentID    int
-	MostRecentID int
-	DelayNewest  int
-	Delays       []int
-	Mu           sync.Mutex
+	BatchID            uint16
+	HighestID          int
+	ThresholdsAmounts  []uint16
+	ThresholdsOffsets  []uint16
+	HitThresholdLevels []uint16
+	Delays             []uint32
+	Mu                 sync.Mutex
 }
 
 type Outcome struct {
-	RateLimits      int
-	NotFounds       int
-	OtherErrs       int
-	ConsecutiveErrs int
-	Successes       int
-	SentToBackup    int
-	Recovered       int
-	Lost            int
-	Mu              sync.Mutex
-}
-
-func NewCore(cfg *assetshandler.Config) *Core {
-	return &Core{
-		Concurrency: cfg.Core.InitialConcurrency,
-		Step:        cfg.Core.InitialStep,
-	}
-}
-
-func NewState(cfg *assetshandler.Config) *State {
-	return &State{
-		CurrentID:    0,
-		MostRecentID: 0,
-		DelayNewest:  cfg.Standard.InitialDelay,
-	}
-}
-
-type Handlers struct {
-	SHandler StepHandler
-	CHandler ConcurrencyHandler
-}
-
-type StepHandler struct {
-	UpdateTime int
-	LastDelay  int
-	Retries    int
+	RateLimits int
+	NotFounds  int
+	OtherErrs  int
+	Successes  int
+	Recovered  int
+	Lost       int
 	Mu         sync.Mutex
 }
 
-type ConcurrencyHandler struct {
-	UpdateTime int
-	Mu         sync.Mutex
-}
+type ThresholdsWorkerResult struct {
+	Item   map[string]interface{}
+	ItemID int
 
-func NewHandlers() *Handlers {
-	return &Handlers{
-		SHandler: StepHandler{
-			LastDelay: 30000,
-		},
-	}
+	// a flag indicating whether the item was fetched successfully or not
+	Success bool
+
+	// the timestamp of the item
+	Timestamp uint32
 }
 
 type BackupPacket struct {
 	ItemID       int
 	AppendSuffix bool
+}
+
+type CookieJarSession struct {
+	CookieJar   http.CookieJar
+	RefreshChan chan struct{}
+}
+
+type ContentElement struct {
+	// the actual content to process.
+	// it is a map[string]interface{} that represents the JSON object.
+	Content map[string]interface{}
+
+	ContentID int
+}
+
+// ItemFromBatchPacket is used to pass the ID of the item to fetch along with
+// the ID of the batch of generated item IDs it belongs to.
+// This is useful for debugging purposes.
+type ItemFromBatchPacket struct {
+	ItemID  int
+	BatchID uint16
 }

@@ -2,14 +2,21 @@ package network
 
 import (
 	"errors"
+	"math"
 	"math/rand"
+	"net/http/cookiejar"
 	"net/url"
+
+	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 )
 
 var (
 	proxiesPool    []*url.URL
 	userAgentsPool []string
 	profilesPool   []*Profile
+
+	// must be exported in order to make the crawler assign each cookie jar to a refresh worker
+	CookieJarSessionsPool []*wtypes.CookieJarSession
 )
 
 func LoadProxies(proxies []*url.URL) error {
@@ -30,6 +37,26 @@ func LoadUserAgents(userAgents []string) error {
 	return nil
 }
 
+func InitCookieJars(amount uint16) error {
+	if amount == 0 {
+		return errors.New("tried to initialize cookie jars pool with 0 elements")
+	}
+
+	CookieJarSessionsPool = make([]*wtypes.CookieJarSession, amount)
+	for i := uint16(0); i < amount; i++ {
+		cookieJar, err := cookiejar.New(nil)
+		if err != nil {
+			return err
+		}
+
+		CookieJarSessionsPool[i] = &wtypes.CookieJarSession{
+			CookieJar:   cookieJar,
+			RefreshChan: make(chan struct{}, math.MaxUint8),
+		}
+	}
+	return nil
+}
+
 // This function should only be called after LoadUserAgents
 func GenerateAndLoadProfiles() (profilesAmount int) {
 	profilesPool = generateProfiles(userAgentsPool)
@@ -44,6 +71,10 @@ func pickRandomProxy(randGen *rand.Rand) *url.URL {
 
 func PickRandomUserAgent(randGen *rand.Rand) string {
 	return userAgentsPool[randGen.Intn(len(userAgentsPool))]
+}
+
+func PickRandomCookieJarSession(randGen *rand.Rand) *wtypes.CookieJarSession {
+	return CookieJarSessionsPool[randGen.Intn(len(CookieJarSessionsPool))]
 }
 
 func pickRandomProfile(randGen *rand.Rand) *Profile {
