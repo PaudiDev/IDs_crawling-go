@@ -221,5 +221,6 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 		subordinateWkIDsChannel,
 		wsChan,
 		state,
+		&cfg.Core.BatchLimits,
 	)
 }
