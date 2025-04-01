@@ -44,10 +44,8 @@ type BackupWorker struct {
 
 func (bWk *BackupWorker) Run(
 	cfg *assetshandler.Config,
-	core *wtypes.Core,
 	state *wtypes.State,
 	outcome *wtypes.Outcome,
-	handlers *wtypes.Handlers,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -166,11 +164,14 @@ func (bWk *BackupWorker) Run(
 				rawTs := item[tsKey].(string)
 				parsedTs, err := time.Parse(cfg.Standard.TimestampFormat, rawTs)
 				assert.NoError(err, "timestamp must be parsed successfully")
-				tmp_d := (int)(time.Since(parsedTs).Milliseconds())
+
+				// it can happen that a server displays some items with a timestamp
+				// in the future for internal sync issues, so we make sure to keep
+				// the delay positive
+				delay := uint32(max(int(time.Since(parsedTs).Milliseconds()), 0))
 
 				state.Mu.Lock()
-				state.DelayNewest = tmp_d
-				state.Delays = append(state.Delays, tmp_d)
+				state.Delays = append(state.Delays, delay)
 				state.Mu.Unlock()
 
 				// XXX: In production this can be removed for increased performance
@@ -183,7 +184,7 @@ func (bWk *BackupWorker) Run(
 				logChan <- ctypes.LogData{
 					Level: slog.LevelDebug,
 					Msg: fmt.Sprintf("recovered item (ID %v) after %d %s (%d 401s, %d 404s, %d 429s, %d unknowns) ----- %v",
-						itemID, retriesAmount+1, retrySingPlur, s401, s404, s429, sOther, tmp_d),
+						itemID, retriesAmount+1, retrySingPlur, s401, s404, s429, sOther, delay),
 				}
 
 				break
@@ -207,5 +208,5 @@ func (bWk *BackupWorker) log(logChan <-chan ctypes.LogData) {
 }
 
 func (bWk *BackupWorker) logFormat(text string) string {
-	return fmt.Sprintf("(BackupWorker B%v): %s", bWk.ID, text)
+	return fmt.Sprintf("(BackupWorker B%d): %s", bWk.ID, text)
 }
