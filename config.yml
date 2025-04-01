@@ -2,6 +2,9 @@ core:
   thresholds_initial_amount(max_255): 10
   expected_max_thresholds_amount(max_255): 100
   thresholds_offset(max_255): 50
+  batch_limits:
+    enable_batch_limits: true
+    max_batch_size: 1000
 
 http:
   requests_timeout_seconds: 5

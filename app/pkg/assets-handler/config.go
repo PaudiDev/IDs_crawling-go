@@ -16,9 +16,10 @@ type Config struct {
 }
 
 type core struct {
-	ThresholdsInitialAmount uint8 `yaml:"thresholds_initial_amount(max_255)"`
-	ExpMaxThresholdsAmount  uint8 `yaml:"expected_max_thresholds_amount(max_255)"`
-	ThresholdsOffset        uint8 `yaml:"thresholds_offset(max_255)"`
+	ThresholdsInitialAmount uint8       `yaml:"thresholds_initial_amount(max_255)"`
+	ExpMaxThresholdsAmount  uint8       `yaml:"expected_max_thresholds_amount(max_255)"`
+	ThresholdsOffset        uint8       `yaml:"thresholds_offset(max_255)"`
+	BatchLimits             BatchLimits `yaml:"batch_limits"`
 }
 
 type http struct {
@@ -45,6 +46,11 @@ type standard struct {
 type ThresholdsAdjPolicyCfg struct {
 	Percentage           float32 `yaml:"percentage"`
 	ComputeIncrementExpr string  `yaml:"compute_increment"`
+}
+
+type BatchLimits struct {
+	EnableBatchLimits bool   `yaml:"enable_batch_limits"`
+	MaxBatchSize      uint16 `yaml:"max_batch_size"`
 }
 
 type urls struct {

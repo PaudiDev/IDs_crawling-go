@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"slices"
 
+	assetshandler "crawler/app/pkg/assets-handler"
 	wtypes "crawler/app/pkg/crawler/workers/workers-types"
 	"crawler/app/pkg/thresholds"
 )
@@ -24,6 +25,7 @@ func (wkM *workersManager) run(
 	subordinateWkChan chan<- *wtypes.ItemFromBatchPacket,
 	successfulItemsChan chan<- *wtypes.ContentElement,
 	state *wtypes.State,
+	batchLimits *assetshandler.BatchLimits,
 ) {
 	var result *wtypes.ThresholdsWorkerResult
 	var highestThresholdID int = state.HighestID
@@ -95,28 +97,32 @@ func (wkM *workersManager) run(
 		} else {
 			timestamp = result.Timestamp
 
-			// let thresholdsIDs be the set of IDs successfully fetched by the thresholds workers.
-			//
-			// send to the subordinate workers all IDs within the range
-			// [lastSuccID+1, highestThresholdID] \ thresholdsIDs to fill the IDs gaps.
-			succThresholdIDs := make([]int, 0, thresholdsAmount)
-			for k, v := range results {
-				if v.Success {
-					succThresholdIDs = append(succThresholdIDs, k)
-				}
-			}
-			slices.Sort(succThresholdIDs)
-
-			succThresholdIDsLen := len(succThresholdIDs)
-			for count := 0; count < succThresholdIDsLen; count++ {
-				interruptID := succThresholdIDs[count]
-				for id := lastSuccID + 1; id < interruptID; id++ {
-					subordinateWkChan <- &wtypes.ItemFromBatchPacket{
-						ItemID:  id,
-						BatchID: batchID,
+			if batchLimits.EnableBatchLimits && thresholdsAmount*wkM.offset > batchLimits.MaxBatchSize {
+				lastSuccID = highestThresholdID
+			} else {
+				// let thresholdsIDs be the set of IDs successfully fetched by the thresholds workers.
+				//
+				// send to the subordinate workers all IDs within the range
+				// [lastSuccID+1, highestThresholdID] \ thresholdsIDs to fill the IDs gaps.
+				succThresholdIDs := make([]int, 0, thresholdsAmount)
+				for k, v := range results {
+					if v.Success {
+						succThresholdIDs = append(succThresholdIDs, k)
 					}
 				}
-				lastSuccID = interruptID
+				slices.Sort(succThresholdIDs)
+
+				succThresholdIDsLen := len(succThresholdIDs)
+				for count := 0; count < succThresholdIDsLen; count++ {
+					interruptID := succThresholdIDs[count]
+					for id := lastSuccID + 1; id < interruptID; id++ {
+						subordinateWkChan <- &wtypes.ItemFromBatchPacket{
+							ItemID:  id,
+							BatchID: batchID,
+						}
+					}
+					lastSuccID = interruptID
+				}
 			}
 		}
 
