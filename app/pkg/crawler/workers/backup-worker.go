@@ -106,7 +106,7 @@ func (bWk *BackupWorker) Run(
 						retrySingPlur = "retry"
 					}
 					logChan <- ctypes.LogData{
-						Level: slog.LevelError,
+						Level: slog.LevelWarn,
 						Msg: fmt.Sprintf("item (ID %v) skipped after %d failed %s (%d 401s, %d 404s, %d 429s, %d unknowns)",
 							itemID, retriesAmount, retrySingPlur, s401, s404, s429, sOther),
 					}
