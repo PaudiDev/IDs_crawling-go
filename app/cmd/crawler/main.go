@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"crawler/app/pkg/assert"
@@ -24,9 +25,17 @@ func main() {
 	go shutdown.HandleSIGTERM(cancel)
 	assert.LoadCtxCancel(cancel)
 
+	slogLevels := map[string]slog.Level{
+		"debug":   slog.LevelDebug,
+		"info":    slog.LevelInfo,
+		"warn":    slog.LevelWarn,
+		"warning": slog.LevelWarn,
+		"error":   slog.LevelError,
+	}
+
 	slogHandler := slog.NewTextHandler(
 		os.Stdout,
-		&slog.HandlerOptions{Level: slog.LevelDebug},
+		&slog.HandlerOptions{Level: slogLevels[strings.ToLower(os.Getenv("LOG_LEVEL"))]},
 	)
 	slog.SetDefault(slog.New(slogHandler))
 
