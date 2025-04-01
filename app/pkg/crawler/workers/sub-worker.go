@@ -39,10 +39,8 @@ type SubordinateWorker struct {
 
 func (sWk *SubordinateWorker) Run(
 	cfg *assetshandler.Config,
-	core *wtypes.Core,
 	state *wtypes.State,
 	outcome *wtypes.Outcome,
-	handlers *wtypes.Handlers,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -92,9 +90,6 @@ func (sWk *SubordinateWorker) Run(
 					ItemID:       itemID,
 					AppendSuffix: appendedSuffix,
 				}
-				outcome.Mu.Lock()
-				outcome.SentToBackup++
-				outcome.Mu.Unlock()
 
 				switch {
 				case errors.Is(err, customerrors.ErrorUnauthorized):
@@ -109,7 +104,6 @@ func (sWk *SubordinateWorker) Run(
 				case errors.Is(err, customerrors.ErrorNotFound):
 					outcome.Mu.Lock()
 					outcome.NotFounds++
-					outcome.ConsecutiveErrs++
 					outcome.Mu.Unlock()
 				default:
 					outcome.Mu.Lock()
@@ -128,7 +122,6 @@ func (sWk *SubordinateWorker) Run(
 
 			outcome.Mu.Lock()
 			outcome.Successes++
-			outcome.ConsecutiveErrs = 0
 			outcome.Mu.Unlock()
 
 			sWk.ResultsChan <- &wtypes.ContentElement{
@@ -151,10 +144,9 @@ func (sWk *SubordinateWorker) Run(
 			// it can happen that a server displays some items with a timestamp
 			// in the future for internal sync issues, so we make sure to keep
 			// the delay positive
-			delay := max(int(time.Since(parsedTs).Milliseconds()), 0)
+			delay := uint32(max(int(time.Since(parsedTs).Milliseconds()), 0))
 
 			state.Mu.Lock()
-			state.DelayNewest = delay
 			state.Delays = append(state.Delays, delay)
 			state.Mu.Unlock()
 

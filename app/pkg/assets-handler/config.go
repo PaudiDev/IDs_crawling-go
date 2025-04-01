@@ -16,25 +16,20 @@ type Config struct {
 }
 
 type core struct {
-	MaxConcurrency          int   `yaml:"max_concurrency"`
-	InitialConcurrency      int   `yaml:"initial_concurrency"`
-	InitialStep             int   `yaml:"initial_step"`
 	ThresholdsInitialAmount uint8 `yaml:"thresholds_initial_amount(max_255)"`
 	ExpMaxThresholdsAmount  uint8 `yaml:"expected_max_thresholds_amount(max_255)"`
 	ThresholdsOffset        uint8 `yaml:"thresholds_offset(max_255)"`
 }
 
 type http struct {
-	Timeout                      int             `yaml:"requests_timeout_seconds"`
-	CookiesSessionsAmount        uint16          `yaml:"cookies_sessions_amount"`
-	CookiesRefreshDelay          int             `yaml:"cookies_refresh_delay"`
-	CrashOnFirstCookieFetchError bool            `yaml:"crash_on_first_cookie_fetch_error"`
-	MaxRetriesPerItem            uint8           `yaml:"max_retries_per_item"`
-	DelayBetweenRetries          uint64          `yaml:"delay_between_retries_milli"`
-	MaxRateLimitsPerSecond       int             `yaml:"max_rate_limits_per_second"`
-	RateLimitWait                int             `yaml:"rate_limit_wait_seconds"`
-	StepData                     stepData        `yaml:"step_data"`
-	ConcurrencyData              concurrencyData `yaml:"concurrency_data"`
+	Timeout                      int    `yaml:"requests_timeout_seconds"`
+	CookiesSessionsAmount        uint16 `yaml:"cookies_sessions_amount"`
+	CookiesRefreshDelay          int    `yaml:"cookies_refresh_delay"`
+	CrashOnFirstCookieFetchError bool   `yaml:"crash_on_first_cookie_fetch_error"`
+	MaxRetriesPerItem            uint8  `yaml:"max_retries_per_item"`
+	DelayBetweenRetries          uint64 `yaml:"delay_between_retries_milli"`
+	MaxRateLimitsPerSecond       int    `yaml:"max_rate_limits_per_second"`
+	RateLimitWait                int    `yaml:"rate_limit_wait_seconds"`
 }
 
 type standard struct {
@@ -50,36 +45,6 @@ type standard struct {
 type ThresholdsAdjPolicyCfg struct {
 	Percentage           float32 `yaml:"percentage"`
 	ComputeIncrementExpr string  `yaml:"compute_increment"`
-}
-
-type stepData struct {
-	NewAdjustmentCfg     newAdjustmentCfg `yaml:"new_adjustment_config"`
-	MaxErrorDeviation    int              `yaml:"max_error_deviation"`
-	MaxConsecutiveErrors int              `yaml:"max_consecutive_errors"`
-	MaxRetries           int              `yaml:"max_retries"`
-	MaxTime              int              `yaml:"max_time"`
-	AggressiveTime       int              `yaml:"aggressive_time"`
-	MediumAggressiveTime int              `yaml:"medium_aggressive_time"`
-	MediumTime           int              `yaml:"medium_time"`
-	MinTime              int              `yaml:"min_time"`
-	RetryTime            int              `yaml:"retry_time"`
-	LastDelayOffset      int              `yaml:"last_delay_offset"`
-}
-
-type concurrencyData struct {
-	NewAdjustmentCfg     newAdjustmentCfg `yaml:"new_adjustment_config"`
-	MaxErrorDeviation    int              `yaml:"max_error_deviation"`
-	MaxConsecutiveErrors int              `yaml:"max_consecutive_errors"`
-	MinConcurrency       int              `yaml:"min_concurrency"`
-	MaxTime              int              `yaml:"max_time"`
-	MediumTime           int              `yaml:"medium_time"`
-	MinTime              int              `yaml:"min_time"`
-}
-
-type newAdjustmentCfg struct {
-	MinChangeTimeHighDelay int `yaml:"min_time_since_last_adjustment_high_delay_milli"`
-	MinChangeTimeLowDelay  int `yaml:"min_time_since_last_adjustment_low_delay_milli"`
-	HighDelayThreshold     int `yaml:"high_delay_threshold"`
 }
 
 type urls struct {

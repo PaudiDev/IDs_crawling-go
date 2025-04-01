@@ -37,10 +37,8 @@ type ThresholdsWorker struct {
 
 func (tWk *ThresholdsWorker) Run(
 	cfg *assetshandler.Config,
-	core *wtypes.Core,
 	state *wtypes.State,
 	outcome *wtypes.Outcome,
-	handlers *wtypes.Handlers,
 ) {
 	logChan := make(chan ctypes.LogData, 1000)
 	defer close(logChan)
@@ -100,7 +98,6 @@ func (tWk *ThresholdsWorker) Run(
 				case errors.Is(err, customerrors.ErrorNotFound):
 					outcome.Mu.Lock()
 					outcome.NotFounds++
-					outcome.ConsecutiveErrs++
 					outcome.Mu.Unlock()
 				default:
 					outcome.Mu.Lock()
@@ -125,7 +122,6 @@ func (tWk *ThresholdsWorker) Run(
 				continue
 			}
 
-			// no outcome.ConsecutiveErrs = 0 to avoid interfering with the sub workers
 			outcome.Mu.Lock()
 			outcome.Successes++
 			outcome.Mu.Unlock()
@@ -145,17 +141,16 @@ func (tWk *ThresholdsWorker) Run(
 			// it can happen that a server displays some items with a timestamp
 			// in the future for internal sync issues, so we make sure to keep
 			// the delay positive
-			delay := max(int(time.Since(parsedTs).Milliseconds()), 0)
+			delay := uint32(max(int(time.Since(parsedTs).Milliseconds()), 0))
 
 			tWk.ResultsChan <- &wtypes.ThresholdsWorkerResult{
 				Item:      decodedResp,
 				ItemID:    itemID,
 				Success:   err == nil,
-				Timestamp: uint32(delay),
+				Timestamp: delay,
 			}
 
 			state.Mu.Lock()
-			state.DelayNewest = delay
 			state.Delays = append(state.Delays, delay)
 			state.Mu.Unlock()
 

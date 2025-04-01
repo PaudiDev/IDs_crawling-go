@@ -23,10 +23,10 @@ func (wkM *workersManager) run(
 	thresholdsWkResultsChan <-chan *wtypes.ThresholdsWorkerResult,
 	subordinateWkChan chan<- *wtypes.ItemFromBatchPacket,
 	successfulItemsChan chan<- *wtypes.ContentElement,
-	initialID int,
+	state *wtypes.State,
 ) {
 	var result *wtypes.ThresholdsWorkerResult
-	var highestThresholdID int = initialID
+	var highestThresholdID int = state.HighestID
 	var initialOffset uint16 = wkM.offset
 
 	var batchID uint16 = 1
@@ -36,6 +36,12 @@ func (wkM *workersManager) run(
 		thresholdsAmount := wkM.thresholdsController.GetThresholdsAmount()
 		results := make(map[int]*wtypes.ThresholdsWorkerResult, thresholdsAmount)
 		wkM.offset += uint16(wkM.rand.Intn(3) - 1) // -1, 0, or 1
+
+		// update state for logging
+		state.Mu.Lock()
+		state.ThresholdsAmounts = append(state.ThresholdsAmounts, thresholdsAmount)
+		state.ThresholdsOffsets = append(state.ThresholdsOffsets, wkM.offset)
+		state.Mu.Unlock()
 
 		// avoid too big or too small / negative offsets
 		if wkM.offset >= 2*initialOffset || wkM.offset <= uint16(0.5*float32(initialOffset)) {
@@ -113,6 +119,14 @@ func (wkM *workersManager) run(
 				lastSuccID = interruptID
 			}
 		}
+
+		// update state for logging
+		state.Mu.Lock()
+		state.BatchID = batchID
+		state.HighestID = highestThresholdID
+		state.HitThresholdLevels = append(state.HitThresholdLevels, thresholdsAmount)
+		state.Mu.Unlock()
+		batchID++
 
 		wkM.thresholdsController.Update(
 			&thresholds.ThresholdsControllerInput{

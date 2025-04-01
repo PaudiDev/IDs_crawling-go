@@ -26,8 +26,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	// Setup workers related variables
 	//
 
-	var core *wtypes.Core = wtypes.NewCore(cfg)
-	var state *wtypes.State = wtypes.NewState(cfg)
+	var state *wtypes.State = new(wtypes.State)
 	var outcome *wtypes.Outcome = new(wtypes.Outcome)
 
 	var maxRetriesPerItem uint8 = cfg.Http.MaxRetriesPerItem
@@ -92,8 +91,6 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	// set to their amount.
 	wsChan := make(chan *wtypes.ContentElement, backupWorkersAmount)
 
-	var handlers *wtypes.Handlers = wtypes.NewHandlers()
-
 	var wg sync.WaitGroup
 
 	for i, cookieJarSession := range network.CookieJarSessionsPool {
@@ -125,7 +122,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 			Rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go sWk.Run(cfg, core, state, outcome, handlers)
+		go sWk.Run(cfg, state, outcome)
 	}
 
 	for j := uint32(1); j <= backupWorkersAmount; j++ {
@@ -139,7 +136,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 			Rand:                  rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go bWk.Run(cfg, core, state, outcome, handlers)
+		go bWk.Run(cfg, state, outcome)
 	}
 
 	for k := uint8(1); k <= idealMaxThresholdsAmount; k++ {
@@ -151,7 +148,7 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 			Rand:         rand.New(rand.NewSource(time.Now().UnixNano())),
 		}
 
-		go tWk.Run(cfg, core, state, outcome, handlers)
+		go tWk.Run(cfg, state, outcome)
 	}
 
 	slog.Info(
@@ -194,21 +191,20 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 	wg.Wait()
 	cookieJarSession := network.PickRandomCookieJarSession(mainRand)
 
-	state.CurrentID, err = network.FetchHighestID(ctx, cfg, cookieJarSession.CookieJar, mainRand)
+	state.HighestID, err = network.FetchHighestID(ctx, cfg, cookieJarSession.CookieJar, mainRand)
 	assert.NoError(
 		err, "highest id fetch must be successful to start the crawler",
 		assert.AssertData{
 			"CookieJar": cookieJarSession.CookieJar,
 		},
 	)
-	state.MostRecentID = state.CurrentID
 
 	//
 	// Start the status logger
 	//
 
 	logSeconds := 1
-	go workers.LogAndResetVarsLoop(core, state, outcome, logSeconds, statusLogFile)
+	go workers.LogAndResetVarsLoop(state, outcome, logSeconds, statusLogFile)
 
 	//
 	// Start the workers manager
@@ -224,6 +220,6 @@ func Start(ctx context.Context, cfg *assetshandler.Config, conns []*safews.SafeC
 		thresholdsWkResultsChan,
 		subordinateWkIDsChannel,
 		wsChan,
-		state.CurrentID,
+		state,
 	)
 }

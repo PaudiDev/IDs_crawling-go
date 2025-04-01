@@ -8,10 +8,8 @@ import (
 
 type Worker interface {
 	Run(cfg *assetshandler.Config,
-		core *wtypes.Core,
 		state *wtypes.State,
 		outcome *wtypes.Outcome,
-		handlers *wtypes.Handlers,
 	)
 
 	log(logChan <-chan ctypes.LogData)
